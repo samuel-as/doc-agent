@@ -5,7 +5,7 @@
 
 ## Problema
 
-Criar documentação técnica de procedimentos do time (atendimento de chamados, uso de sistemas internos, processos padrão) é lento e manual. O objetivo é gravar o procedimento sendo executado no navegador — de forma **passiva**, sem narrar nada — e deixar o Claude transformar a gravação em um passo a passo pronto em markdown, com prints. Comportamento de referência: **Scribe** (scribehow.com).
+Criar documentação técnica de procedimentos do time (atendimento de chamados, uso de sistemas internos, processos padrão) é lento e manual. O objetivo é gravar o procedimento sendo executado no navegador — de forma **passiva**, sem narrar nada — e deixar o Claude transformar a gravação em um passo a passo pronto em markdown, com prints. Comportamento de referência: **Scribe** (https://scribe.com/capture).
 
 ## Visão geral
 
