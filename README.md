@@ -10,7 +10,7 @@ passiva das suas ações no navegador. Duas partes:
 
 ## Requisitos
 
-- Node.js ≥ 20, Google Chrome ou Microsoft Edge instalado.
+- Node.js ≥ 22, Google Chrome ou Microsoft Edge instalado.
 - (Opcional) `DOC_AGENT_CHROME` apontando para o executável do navegador, se fora dos caminhos padrão.
 
 ## Uso
