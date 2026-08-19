@@ -8,6 +8,6 @@
   "scripts": { "test": "node --test \"tests/*.test.js\"" },
   "dependencies": {
     "playwright-core": "^1.50.0",
-    "sharp": "^0.33.0"
+    "sharp": "^0.35.0"
   }
 }
