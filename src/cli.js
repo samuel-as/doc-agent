@@ -39,16 +39,18 @@ async function finalize() {
   if (finalizing) return;
   finalizing = true;
   console.log('\nConsolidando sessão...');
+  let ok = true;
   try {
     const dir = await session.finalize();
     const rel = path.relative(root, dir).replaceAll('\\', '/');
     console.log(`Sessão pronta: ${rel}`);
     console.log(`Gere a documentação com: /gerar-doc ${rel}`);
   } catch (e) {
+    ok = false;
     console.error(`Falha ao consolidar: ${e.message}`);
   }
   try { proc.kill(); } catch {}
-  process.exit(0);
+  process.exit(ok ? 0 : 1);
 }
 
 process.on('SIGINT', finalize);
