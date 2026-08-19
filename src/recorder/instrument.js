@@ -33,7 +33,11 @@ export function buildInitScript() {
         const v = el.getAttribute(attr);
         if (v && v.trim()) return v.trim().slice(0, 80);
       }
-      const text = (el.innerText || el.value || '').trim();
+      // el.value só serve de label em inputs tipo botão (<input type="submit" value="...">);
+      // nunca em campos editáveis — senão valor digitado (inclusive senha) vira label.
+      const isButtonLike = el.tagName === 'INPUT' &&
+        ['button','submit','reset'].includes((el.type || '').toLowerCase());
+      const text = (el.innerText || (isButtonLike ? el.value : '') || '').trim();
       return text ? text.slice(0, 80) : null;
     };
 

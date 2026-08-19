@@ -14,6 +14,14 @@ test('script injetado contém binding, listeners e guarda de reinstalação', ()
   assert.ok(src.includes('password'));
 });
 
+test('labelFor não usa el.value como fallback fora de inputs button/submit/reset', () => {
+  const src = buildInitScript();
+  // fallback incondicional (vazaria senha digitada como label) não pode existir
+  assert.ok(!src.includes('el.innerText || el.value'), 'fallback incondicional de el.value presente');
+  // a guarda restringindo el.value a inputs tipo botão deve existir
+  assert.ok(src.includes("['button','submit','reset']"), 'guarda button/submit/reset ausente');
+});
+
 function fakes() {
   const calls = [];
   const session = { addEvent: async (ev, shot) => calls.push({ ev, shot }) };
