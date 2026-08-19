@@ -66,7 +66,7 @@ Cada passo do `session.json` contém: tipo da ação (`click`, `fill`, `select`,
 
 **Consolidação de ruído** (o núcleo da complexidade): eventos de teclado são acumulados e viram um único passo "preencher campo X" quando o campo perde o foco ou recebe Enter, guardando o valor final. Cliques repetidos no mesmo elemento em <500 ms viram um passo só.
 
-**Timing do print:** capturado no instante da ação (mousedown), mostrando a tela como estava quando o usuário agiu; o marcador vermelho é desenhado depois nas coordenadas do clique. Navegações geram um print adicional quando a página nova estabiliza. (Comportamento Scribe: o leitor vê a tela que terá na frente + onde clicar.)
+**Timing do print:** para cliques, capturado no instante da ação (mousedown), mostrando a tela como estava quando o usuário agiu; o marcador vermelho é desenhado depois nas coordenadas do clique. Para passos de digitação (consolidados no blur), o print é capturado no momento em que o campo recebe o foco — mostra ao leitor *onde* digitar, sem expor o valor digitado. Navegações geram um print adicional quando a página nova estabiliza. (Comportamento Scribe: o leitor vê a tela que terá na frente + onde clicar.)
 
 **Multi-abas e popups:** o gravador anexa-se automaticamente a novas abas/janelas do mesmo navegador.
 
