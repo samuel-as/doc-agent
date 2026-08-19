@@ -22,6 +22,18 @@ test('labelFor não usa el.value como fallback fora de inputs button/submit/rese
   assert.ok(src.includes("['button','submit','reset']"), 'guarda button/submit/reset ausente');
 });
 
+test('keydown Enter ignora TEXTAREA e contenteditable (newline não é submissão)', () => {
+  const src = buildInitScript();
+  const keydownIdx = src.indexOf("addEventListener('keydown'");
+  assert.ok(keydownIdx >= 0, 'listener de keydown ausente');
+  const keydownBody = src.slice(keydownIdx);
+  // a guarda deve estar dentro do handler de keydown (após o listener), não só em isEditable
+  assert.ok(
+    keydownBody.includes("tagName === 'TEXTAREA' || t.isContentEditable"),
+    'guarda TEXTAREA/contenteditable ausente no caminho do keydown'
+  );
+});
+
 function fakes() {
   const calls = [];
   const session = { addEvent: async (ev, shot) => calls.push({ ev, shot }) };

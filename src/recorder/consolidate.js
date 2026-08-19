@@ -5,6 +5,7 @@ const NAV_DEDUP_MS = 1000;
 export function consolidate(events) {
   const steps = [];
   const focusBySelector = new Map(); // último foco (click editável ou field-focus) por seletor
+  const lastCommitBySelector = new Map(); // último valor comitado por seletor (dedup Enter+focusout)
   let lastClick = null;
   let lastNav = null;
 
@@ -12,12 +13,14 @@ export function consolidate(events) {
     switch (ev.kind) {
       case 'field-focus':
         focusBySelector.set(ev.selector, ev);
+        lastCommitBySelector.delete(ev.selector); // novo foco: re-edição real pode repetir o valor
         break;
 
       case 'click': {
         if (ev.isEditable) {
           // clique em campo de texto é absorvido pelo passo fill; guarda print/coords
           focusBySelector.set(ev.selector, ev);
+          lastCommitBySelector.delete(ev.selector);
           break;
         }
         if (lastClick && lastClick.selector === ev.selector && ev.ts - lastClick.ts < CLICK_DEDUP_MS) break;
@@ -28,6 +31,10 @@ export function consolidate(events) {
 
       case 'field-commit': {
         if (!ev.isPassword && (ev.value == null || ev.value === '')) break;
+        // Enter comita e o focusout seguinte comita de novo com o mesmo valor:
+        // sem novo foco no seletor, o segundo commit é duplicata e cai fora.
+        if (lastCommitBySelector.has(ev.selector) && lastCommitBySelector.get(ev.selector) === ev.value) break;
+        lastCommitBySelector.set(ev.selector, ev.value);
         const focus = focusBySelector.get(ev.selector) ?? null;
         steps.push(makeStep('fill', ev, {
           value: ev.isPassword ? null : ev.value,

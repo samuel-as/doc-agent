@@ -77,6 +77,48 @@ test('senha: passo fill existe, mas value é null mesmo se algo vazar no evento'
   assert.equal(steps[0].label, 'Senha');
 });
 
+test('field-commit repetido (mesmo seletor e valor, sem novo foco) vira um passo fill', () => {
+  // Enter comita; focusout logo depois comita de novo com o mesmo valor
+  const steps = consolidate([
+    ev('field-focus', { selector: '#busca' }),
+    ev('field-commit', { selector: '#busca', value: 'vpn', ts: 1000 }),
+    ev('field-commit', { selector: '#busca', value: 'vpn', ts: 1050 }),
+  ]);
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].type, 'fill');
+  assert.equal(steps[0].value, 'vpn');
+});
+
+test('field-commit repetido com field-focus intermediário vira dois passos (re-edição real)', () => {
+  const steps = consolidate([
+    ev('field-commit', { selector: '#busca', value: 'vpn', ts: 1000 }),
+    ev('field-focus', { selector: '#busca', ts: 2000 }),
+    ev('field-commit', { selector: '#busca', value: 'vpn', ts: 3000 }),
+  ]);
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0].type, 'fill');
+  assert.equal(steps[1].type, 'fill');
+});
+
+test('field-commit repetido com clique editável intermediário vira dois passos', () => {
+  const steps = consolidate([
+    ev('field-commit', { selector: '#busca', value: 'vpn', ts: 1000 }),
+    ev('click', { selector: '#busca', isEditable: true, ts: 2000 }),
+    ev('field-commit', { selector: '#busca', value: 'vpn', ts: 3000 }),
+  ]);
+  assert.equal(steps.length, 2);
+});
+
+test('field-commit no mesmo seletor com valor diferente vira dois passos', () => {
+  const steps = consolidate([
+    ev('field-commit', { selector: '#busca', value: 'vpn', ts: 1000 }),
+    ev('field-commit', { selector: '#busca', value: 'vpn caiu', ts: 2000 }),
+  ]);
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0].value, 'vpn');
+  assert.equal(steps[1].value, 'vpn caiu');
+});
+
 test('navegações para a mesma URL em <1s viram um passo', () => {
   const steps = consolidate([
     ev('navigation', { url: 'https://app.example.com/ok', ts: 1000, screenshot: 'shots/raw-003.png' }),

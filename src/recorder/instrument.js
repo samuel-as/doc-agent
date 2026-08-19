@@ -101,10 +101,14 @@ export function buildInitScript() {
 
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
-      if (isEditable(e.target)) commit(e.target);
+      const t = e.target;
+      // Em TEXTAREA/contenteditable, Enter insere quebra de linha — não é submissão:
+      // nada de commit parcial nem evento 'enter'.
+      if (t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (isEditable(t)) commit(t);
       send({
         kind: 'enter', ts: Date.now(),
-        label: labelFor(e.target), selector: null,
+        label: labelFor(t), selector: null,
         pageHasPassword: pageHasPassword(),
       });
     }, true);
