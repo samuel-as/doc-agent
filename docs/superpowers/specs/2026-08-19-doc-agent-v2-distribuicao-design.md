@@ -24,6 +24,8 @@ Restrições estabelecidas com o usuário:
 | UX diária | **Tudo no Claude Code**: comando único `/documentar <nome>` (grava + gera); `/gerar-doc` mantida para regenerar sessões antigas |
 | Encerramento da gravação | **Fechar o navegador** (caminho `disconnected` → finalize, validado na v1); Ctrl+C deixa de fazer parte da UX |
 | Distribuição | Repositório git leve (sem node_modules, sem binários); estrutura profissional de repo de skills |
+| Documentação gerada | **Nunca versionada** — é material interno do time; no git fica apenas o que o superpowers produz (`docs/superpowers/`) |
+| Exportação PDF | **Opcional, via subcomando `pdf` do bundle**: markdown → HTML (`marked`, JS puro) → Chrome/Edge headless imprime via CDP `printToPDF` |
 | Nome | `doc-agent` (mantido) |
 | Plataforma | Windows (máquinas do time); Chrome ou Edge já instalados |
 
@@ -48,7 +50,7 @@ doc-agent/
 │       └── build.mjs             # esbuild: src → ../../dist/doc-agent.mjs (bundle, SEM minify)
 ├── dist/
 │   └── doc-agent.mjs             # bundle legível COMMITADO — o que roda na máquina do usuário
-├── docs/                         # documentação gerada (docs/<slug>/) + specs (docs/superpowers/)
+├── docs/                         # docs/superpowers/ VERSIONADO; docs/<slug>/ gerados — GITIGNORED
 ├── runtime/                      # Node portátil oficial (runtime\node.exe) — GITIGNORED
 ├── sessions/                     # gravações — GITIGNORED
 └── browser-profile/              # perfil do Chrome — GITIGNORED
@@ -71,15 +73,25 @@ doc-agent/
 - Sem privilégios de admin, sem registro, sem alteração de PATH.
 - **Falha de rede/proxy**: termina com mensagem clara contendo o link exato do zip e a instrução de um passo (baixar manualmente e extrair em `runtime/`).
 
-## Componente 3: Skill `/documentar <nome>` (nova, principal)
+## Componente 3: Exportação PDF (`doc-agent.mjs pdf <caminho-do-README.md>`)
+
+Subcomando novo do bundle, para quando o usuário quiser a doc em PDF além do markdown:
+
+1. Converte o markdown em HTML com `marked` (JS puro, embutido no bundle) + um CSS de impressão fixo (tipografia limpa, imagens com largura máxima da página, quebras razoáveis).
+2. Grava o HTML temporário **ao lado do README** (para os caminhos relativos `img/passo-NN.png` resolverem) e abre em Chrome/Edge **headless** (mesma detecção de navegador do gravador, perfil temporário — não usa o `browser-profile/` de gravação).
+3. Emite o PDF via CDP `Page.printToPDF` em `docs/<slug>/<slug>.pdf` e remove o HTML temporário.
+4. Erros: navegador ausente ou falha de render → mensagem clara, exit 1, markdown permanece intacto.
+
+## Componente 4: Skill `/documentar <nome>` (nova, principal)
 
 1. **Checagem de ambiente** (idempotente, silenciosa quando tudo ok): roda `bootstrap.ps1`; verifica Chrome/Edge (mesma detecção do gravador). Falta algo → mensagem clara e para.
 2. **Gravação**: executa `runtime\node.exe dist\doc-agent.mjs record <nome>` em background e instrui: *"O navegador de gravação abriu. Execute o procedimento normalmente e **feche o navegador** ao terminar."* Na primeira gravação, avisa que é preciso logar nos sistemas uma vez nesse perfil (logins persistem).
 3. **Fim da gravação**: processo termina → exit 0 = sessão consolidada; exit 1 = falha na consolidação → informa e para (nunca gera doc de sessão quebrada).
 4. **Geração**: aplica o processo da skill `gerar-doc` na mesma sessão (validar `session.json`, ler cada print, agrupar micro-ações em etapas lógicas, escrever `docs/<slug>/README.md` + `img/passo-NN.png`, pt-BR imperativo).
-5. **Nota final** (não mais alerta enfático — a documentação é interna ao time): uma linha lembrando de conferir os prints antes de divulgar fora do time.
+5. **Oferta de PDF**: ao entregar a doc, a skill pergunta se o usuário quer também o PDF; se sim (ou se o pedido original já mencionou PDF), roda `runtime\node.exe dist\doc-agent.mjs pdf docs/<slug>/README.md` e entrega o arquivo.
+6. **Nota final** (não mais alerta enfático — a documentação é interna ao time): uma linha lembrando de conferir os prints antes de divulgar fora do time.
 
-A skill `/gerar-doc` é mantida com o mesmo processo da v1, ajustando apenas a mesma nota final.
+A skill `/gerar-doc` é mantida com o mesmo processo da v1, ganhando a mesma oferta de PDF e a mesma nota final.
 
 ## Tratamento de erros
 
@@ -94,12 +106,14 @@ A skill `/gerar-doc` é mantida com o mesmo processo da v1, ajustando apenas a m
 2. **Smoke do bundle** (novo, obrigatório a cada build): o driver CDP da v1 roda o fluxo completo contra `dist/doc-agent.mjs` (não contra o fonte) num formulário de demo sem senha — prova que o bundle empacotou playwright-core corretamente.
 3. **Teste de segurança do bundle** (novo, obrigatório a cada build): passada do smoke numa página COM campo de senha, com asserções de que (a) nenhum `value` de campo password aparece no `session.json` (inclusive via `label`), e (b) nenhum print foi gerado naquela página. Formaliza como teste automatizado o que na v1 foi verificação manual.
 4. **Teste do bootstrap**: rodar `bootstrap.ps1` numa pasta limpa e validar `runtime\node.exe --version` == versão pinada; rodar de novo e validar que é no-op.
+4b. **Smoke do PDF** (a cada build): rodar `doc-agent.mjs pdf` sobre um README de exemplo com imagem e validar que o PDF existe, tem tamanho > 0 e o processo saiu com 0.
 5. **Validação final de ponta a ponta**: `/documentar` num procedimento real, numa máquina SEM Node instalado (critério de aceite da v2: clonar → abrir Claude Code → `/documentar` → doc gerada, sem nenhum passo manual além de executar o procedimento no navegador).
 
 ## Migração da v1
 
 - `git mv src tools/recorder/src`, `git mv tests tools/recorder/tests`, package.json/lock acompanham; caminhos internos e script de teste ajustados.
-- `sharp` sai das dependências; `pngjs` e `esbuild` (devDependency) entram.
+- `sharp` sai das dependências; `pngjs` e `marked` entram (embutidas no bundle); `esbuild` entra como devDependency.
+- `.gitignore` ganha a regra que exclui a documentação gerada do versionamento (`docs/*` com exceção `!docs/superpowers/`); os docs já gerados hoje na árvore deixam de aparecer como pendência do git.
 - `.claude/skills/gerar-doc/` é revisada (nota final); `.claude/skills/documentar/` é criada.
 - README reescrito para o usuário final (3 passos: clonar, abrir Claude Code, `/documentar`).
 - `.gitignore` ganha `runtime/`; `dist/doc-agent.mjs` passa a ser commitado.
