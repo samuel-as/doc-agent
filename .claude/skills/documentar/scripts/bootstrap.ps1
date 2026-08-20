@@ -2,6 +2,7 @@
 # Garante o Node portátil oficial em <repo>\runtime\node.exe (versão pinada).
 # Idempotente: com o runtime correto presente, não faz nada. Sem admin, sem PATH, sem registro.
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 
 $NodeVersion = 'v24.19.0'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..')).Path

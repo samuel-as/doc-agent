@@ -48,9 +48,9 @@ O slug do procedimento é o nome da pasta SEM o prefixo de data (ex.: `abertura-
 
 6. **Ofereça o PDF.** Pergunte se o usuário quer também a versão em PDF (ou gere direto, se o
    pedido original já mencionou PDF). Se sim:
-   - Se `runtime\node.exe` não existir, rode antes:
+   - Se `runtime/node.exe` não existir, rode antes:
      `powershell -ExecutionPolicy Bypass -File .claude/skills/documentar/scripts/bootstrap.ps1`
-   - Rode: `runtime\node.exe dist\doc-agent.mjs pdf docs/<slug>/README.md`
+   - Rode: `runtime/node.exe dist/doc-agent.mjs pdf docs/<slug>/README.md`
    - Entregue `docs/<slug>/<slug>.pdf` ao usuário.
 
 7. **Nota final** (na sua resposta, uma linha, sem alarde — a documentação é interna ao time):

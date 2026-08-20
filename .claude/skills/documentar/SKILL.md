@@ -21,7 +21,7 @@ preparar o ambiente → gravar → gerar a documentação. O usuário só intera
 ## 2. Gravar
 
 1. Anote se `browser-profile/` já existe (define a mensagem do próximo passo).
-2. Execute EM BACKGROUND: `runtime\node.exe dist\doc-agent.mjs record <nome>`
+2. Execute EM BACKGROUND: `runtime/node.exe dist/doc-agent.mjs record <nome>`
 3. Diga ao usuário: "O navegador de gravação abriu. Execute o procedimento normalmente
    e **feche o navegador** quando terminar." Se `browser-profile/` NÃO existia, acrescente:
    "Primeira gravação: logue nos sistemas nesse navegador — os logins ficam salvos para
