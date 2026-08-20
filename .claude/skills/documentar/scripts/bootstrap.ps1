@@ -33,7 +33,25 @@ try {
 }
 
 if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract }
-Expand-Archive -Path $tmpZip -DestinationPath $tmpExtract
+# Extrai com .NET (mais rápido que Expand-Archive e não mascara o erro real) e
+# tenta de novo em caso de lock transitório de antivírus nos arquivos recém-criados.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$maxTentativas = 3
+for ($tentativa = 1; $tentativa -le $maxTentativas; $tentativa++) {
+  try {
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($tmpZip, $tmpExtract)
+    break
+  } catch {
+    if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract }
+    if ($tentativa -eq $maxTentativas) {
+      Write-Output "FALHA ao extrair o zip apos $maxTentativas tentativas: $($_.Exception.Message)"
+      Write-Output "Plano B manual (1 passo): extraia $tmpZip (o CONTEUDO da pasta $zipBase) para: $RuntimeDir"
+      exit 1
+    }
+    Write-Output "extracao falhou (tentativa $tentativa/$maxTentativas; antivirus?); tentando de novo..."
+    Start-Sleep -Seconds 2
+  }
+}
 New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
 Move-Item -Path (Join-Path $tmpExtract "$zipBase\*") -Destination $RuntimeDir
 Remove-Item -Force $tmpZip
