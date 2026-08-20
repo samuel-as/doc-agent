@@ -4,11 +4,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import sharp from 'sharp';
+import { PNG } from 'pngjs';
 import { SessionWriter } from '../src/recorder/session.js';
 
-async function tinyPng() {
-  return sharp({ create: { width: 50, height: 50, channels: 3, background: '#cccccc' } }).png().toBuffer();
+function tinyPng() {
+  const png = new PNG({ width: 50, height: 50 });
+  png.data.fill(255);
+  return PNG.sync.write(png);
 }
 
 function ev(kind, overrides = {}) {
