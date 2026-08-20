@@ -42,7 +42,7 @@ for ($tentativa = 1; $tentativa -le $maxTentativas; $tentativa++) {
     [System.IO.Compression.ZipFile]::ExtractToDirectory($tmpZip, $tmpExtract)
     break
   } catch {
-    if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract }
+    if (Test-Path $tmpExtract) { try { Remove-Item -Recurse -Force $tmpExtract -ErrorAction Stop } catch {} }
     if ($tentativa -eq $maxTentativas) {
       Write-Output "FALHA ao extrair o zip apos $maxTentativas tentativas: $($_.Exception.Message)"
       Write-Output "Plano B manual (1 passo): extraia $tmpZip (o CONTEUDO da pasta $zipBase) para: $RuntimeDir"
