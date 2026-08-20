@@ -75,6 +75,61 @@ test('Recorder enriquece o evento com url/title e não vaza pageHasPassword', as
   assert.ok(!('pageHasPassword' in calls[0].ev));
 });
 
+test('capturas de screenshot são serializadas: a próxima só começa quando a anterior termina', async () => {
+  const { session } = fakes();
+  const log = [];
+  let n = 0;
+  const page = {
+    url: () => 'https://x', title: async () => 'X',
+    screenshot: async () => {
+      const id = ++n;
+      log.push(`start-${id}`);
+      await new Promise((r) => setTimeout(r, 20));
+      log.push(`end-${id}`);
+      return Buffer.from('png');
+    },
+  };
+  const rec = new Recorder(null, session);
+  // dois eventos concorrentes, como numa rajada de cliques
+  await Promise.all([
+    rec.onEvent(page, { kind: 'click', ts: 1, pageHasPassword: false }),
+    rec.onEvent(page, { kind: 'click', ts: 2, pageHasPassword: false }),
+  ]);
+  assert.deepEqual(log, ['start-1', 'end-1', 'start-2', 'end-2']);
+});
+
+test('navegação saindo de tela de senha: URL sem query/hash e sem print; passos seguintes na mesma página também', async () => {
+  const { calls, session } = fakes();
+  const rec = new Recorder(null, session);
+  // evento numa tela de login marca a página atual como "tem senha"
+  const loginPage = {
+    url: () => 'https://app.example.com/login',
+    title: async () => 'Login',
+    screenshot: async () => Buffer.from('png'),
+  };
+  await rec.onEvent(loginPage, { kind: 'click', ts: 1, pageHasPassword: true });
+  // submit do login: form GET vaza a senha na URL de destino
+  const homePage = {
+    url: () => 'https://app.example.com/home?pwd=SEGREDO#tk=SEGREDO',
+    title: async () => 'Home',
+    waitForLoadState: async () => {},
+    evaluate: async () => false, // destino não tem campo de senha
+    screenshot: async () => Buffer.from('png'),
+  };
+  await rec.onNavigation(homePage);
+  assert.equal(calls[1].ev.url, 'https://app.example.com/home'); // sem query nem hash
+  assert.equal(calls[1].shot, null); // sem print na chegada do login
+  // clique subsequente na MESMA página: URL continua encurtada, print volta ao normal
+  await rec.onEvent(homePage, { kind: 'click', ts: 3, pageHasPassword: false });
+  assert.equal(calls[2].ev.url, 'https://app.example.com/home');
+  assert.ok(Buffer.isBuffer(calls[2].shot));
+  // navegação comum depois disso: URL completa e print normais
+  const listPage = { ...homePage, url: () => 'https://app.example.com/lista?aba=2' };
+  await rec.onNavigation(listPage);
+  assert.equal(calls[3].ev.url, 'https://app.example.com/lista?aba=2');
+  assert.ok(Buffer.isBuffer(calls[3].shot));
+});
+
 test('falha no screenshot não derruba o evento (shot null)', async () => {
   const { calls, session } = fakes();
   const page = {
