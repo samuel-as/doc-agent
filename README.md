@@ -1,40 +1,37 @@
 # doc-agent
 
-Gera documentação técnica passo a passo (estilo Scribe) a partir de uma gravação
-passiva das suas ações no navegador. Duas partes:
-
-1. **Gravador** (`doc-agent record`) — abre um Chrome com perfil dedicado, registra
-   cliques/digitação/navegação e tira prints automaticamente. Não usa IA nem tokens.
-2. **Skill `/gerar-doc`** — o Claude Code lê a sessão gravada e escreve o markdown
-   final em `docs/`, em pt-BR e tom imperativo.
+Documente procedimentos do time gravando o que você faz no navegador.
+Você executa o procedimento; o doc-agent registra os passos e os prints,
+e o Claude escreve o passo a passo em markdown — com PDF opcional.
 
 ## Requisitos
 
-- Node.js ≥ 22, Google Chrome ou Microsoft Edge instalado.
-- (Opcional) `DOC_AGENT_CHROME` apontando para o executável do navegador, se fora dos caminhos padrão.
+- Windows com Google Chrome ou Microsoft Edge
+- Claude Code
+- Mais nada: sem Node, sem npm, sem instalação — o runtime é baixado
+  automaticamente na primeira execução (zip oficial do nodejs.org).
 
 ## Uso
 
-```powershell
-npm install                              # uma vez
-node src/cli.js record abertura-chamado-vpn
-# → execute o procedimento no navegador que abriu; Ctrl+C encerra
-# → sessions/2026-08-19-abertura-chamado-vpn/
-```
+1. Clone este repositório e abra o Claude Code na pasta.
+2. Rode `/documentar <nome-do-procedimento>` (ex.: `/documentar abertura-chamado-vpn`).
+3. Execute o procedimento no navegador que abrir e **feche o navegador** ao terminar.
 
-Depois, numa sessão do Claude Code neste projeto:
-
-```
-/gerar-doc sessions/2026-08-19-abertura-chamado-vpn
-# → docs/abertura-chamado-vpn/README.md + img/
-```
-
-**Revise os prints antes de publicar** — dados pessoais que estavam na tela aparecem nas imagens.
+A documentação sai em `docs/<nome>/README.md` (+ `docs/<nome>/<nome>.pdf`, se você pedir).
+Para regenerar a doc de uma gravação antiga: `/gerar-doc sessions/<pasta-da-sessão>`.
 
 ## Notas
 
-- O primeiro `record` abre um perfil de navegador zerado (`browser-profile/`): logue nos
-  sistemas uma vez; os logins persistem nas próximas gravações. (Chrome 136+ não permite
-  gravar no seu perfil pessoal.)
-- Telas de login com campo de senha não geram prints, e valores de senha nunca são registrados.
-- `sessions/` e `browser-profile/` são locais e nunca vão para o git.
+- Primeira gravação: logue nos sistemas no navegador que abrir — os logins ficam
+  salvos localmente (`browser-profile/`) para as próximas gravações.
+- Telas com campo de senha não geram prints, e senhas nunca são registradas.
+- `sessions/`, `runtime/`, `browser-profile/` e a documentação gerada são locais —
+  nunca vão para o git.
+
+## Para mantenedores
+
+- Fonte do gravador: `tools/recorder/src/` — testes: `npm test` (em `tools/recorder`).
+- Alterou o fonte? Regenere e commite o bundle: `npm run build` → `dist/doc-agent.mjs`.
+- Smokes (exigem Chrome/Edge): `npm run smoke`, `npm run smoke:security`, `npm run smoke:pdf`.
+- Atualizar a versão do Node portátil: editar `$NodeVersion` em
+  `.claude/skills/documentar/scripts/bootstrap.ps1`.
