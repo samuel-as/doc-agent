@@ -46,7 +46,7 @@ export async function exportPdf(readmePath) {
     });
   } finally {
     try { proc?.kill(); } catch {}
-    await fs.rm(htmlPath, { force: true });
+    await fs.rm(htmlPath, { force: true }).catch(() => {});
     await fs.rm(profileDir, { recursive: true, force: true }).catch(() => {});
   }
   return pdfPath;

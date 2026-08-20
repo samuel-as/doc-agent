@@ -169253,7 +169253,8 @@ async function exportPdf(readmePath) {
       proc?.kill();
     } catch {
     }
-    await fs3.rm(htmlPath, { force: true });
+    await fs3.rm(htmlPath, { force: true }).catch(() => {
+    });
     await fs3.rm(profileDir2, { recursive: true, force: true }).catch(() => {
     });
   }
