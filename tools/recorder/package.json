@@ -13,9 +13,11 @@
     "test": "node --test \"tests/*.test.js\"",
     "build": "node build.mjs",
     "smoke": "node smoke/driver.mjs",
-    "smoke:security": "node smoke/driver.mjs security"
+    "smoke:security": "node smoke/driver.mjs security",
+    "smoke:pdf": "node smoke/pdf.mjs"
   },
   "dependencies": {
+    "marked": "^15.0.12",
     "playwright-core": "^1.50.0",
     "pngjs": "^7.0.0"
   },

@@ -23,15 +23,17 @@ export function findChrome(candidates = DEFAULT_CANDIDATES) {
   );
 }
 
-export async function launchBrowser({ profileDir, port = 9333 }) {
+export async function launchBrowser({ profileDir, port = 9333, headless = false }) {
   const exe = findChrome();
-  const proc = spawn(exe, [
+  const args = [
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${profileDir}`, // Chrome 136+ exige perfil dedicado para CDP
     '--no-first-run',
     '--no-default-browser-check',
-    'about:blank',
-  ], { stdio: 'ignore' });
+  ];
+  if (headless) args.push('--headless=new');
+  args.push('about:blank');
+  const proc = spawn(exe, args, { stdio: 'ignore' });
 
   const endpoint = `http://127.0.0.1:${port}`;
   const deadline = Date.now() + 15_000;
