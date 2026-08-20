@@ -166909,8 +166909,15 @@ var Recorder2 = class {
     this.context = context3;
     this.session = session3;
     this._shotChain = Promise.resolve();
-    this._lastPageHadPassword = false;
-    this._sensitiveBase = null;
+    this._pageState = /* @__PURE__ */ new WeakMap();
+  }
+  _stateFor(page) {
+    let st = this._pageState.get(page);
+    if (!st) {
+      st = { hadPassword: false, sensitiveBase: null };
+      this._pageState.set(page, st);
+    }
+    return st;
   }
   async start() {
     await this.context.exposeBinding(BINDING, (source12, payloadJson) => {
@@ -166932,21 +166939,26 @@ var Recorder2 = class {
     });
   }
   async onNavigation(page) {
+    const st = this._stateFor(page);
+    const cameFromPassword = st.hadPassword;
+    const applySensitivity = () => {
+      const base = page.url().split(/[?#]/)[0];
+      if (cameFromPassword) st.sensitiveBase = base;
+      else if (base !== st.sensitiveBase) st.sensitiveBase = null;
+    };
+    applySensitivity();
     await page.waitForLoadState("load", { timeout: 1e4 }).catch(() => {
     });
     await page.evaluate(buildInitScript()).catch(() => {
     });
     const hasPw = await page.evaluate(`!!document.querySelector('input[type="password"]')`).catch(() => true);
-    const cameFromPassword = this._lastPageHadPassword;
-    this._lastPageHadPassword = hasPw;
-    const base = page.url().split(/[?#]/)[0];
-    if (cameFromPassword) this._sensitiveBase = base;
-    else if (base !== this._sensitiveBase) this._sensitiveBase = null;
+    st.hadPassword = hasPw;
+    applySensitivity();
     const shot = hasPw || cameFromPassword ? null : await this.screenshot(page);
     await this.session.addEvent({
       kind: "navigation",
       ts: Date.now(),
-      url: this._safeUrl(page.url()),
+      url: this._safeUrl(page),
       title: await page.title().catch(() => null),
       label: null,
       selector: null,
@@ -166958,7 +166970,7 @@ var Recorder2 = class {
   }
   async onEvent(page, payload) {
     const { pageHasPassword, ...ev } = payload;
-    this._lastPageHadPassword = pageHasPassword;
+    this._stateFor(page).hadPassword = pageHasPassword;
     const wantsShot = !pageHasPassword && !NO_SCREENSHOT_KINDS.has(ev.kind);
     const shot = wantsShot ? await this.screenshot(page) : null;
     await this.session.addEvent({
@@ -166969,15 +166981,16 @@ var Recorder2 = class {
       label: null,
       selector: null,
       ...ev,
-      url: this._safeUrl(page.url()),
+      url: this._safeUrl(page),
       title: await page.title().catch(() => null)
     }, shot);
   }
-  // Corta query/hash da URL quando a página atual foi alcançada a partir de uma
-  // tela de senha (ver onNavigation) — credenciais nunca vão para o session.json.
-  _safeUrl(url) {
+  // Corta query/hash da URL quando ESTA aba foi alcançada a partir de uma tela
+  // de senha (ver onNavigation) — credenciais nunca vão para o session.json.
+  _safeUrl(page) {
+    const url = page.url();
     const base = url.split(/[?#]/)[0];
-    return this._sensitiveBase === base ? base : url;
+    return this._stateFor(page).sensitiveBase === base ? base : url;
   }
   // Serializa as capturas AQUI, não só no playwright: o playwright já enfileira
   // screenshots por página, mas o timeout de cada page.screenshot() conta a partir

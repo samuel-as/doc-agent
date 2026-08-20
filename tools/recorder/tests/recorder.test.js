@@ -98,36 +98,87 @@ test('capturas de screenshot são serializadas: a próxima só começa quando a 
   assert.deepEqual(log, ['start-1', 'end-1', 'start-2', 'end-2']);
 });
 
+// Uma aba de verdade é UM MESMO objeto Page cuja url muda a cada navegação —
+// os fakes de aba precisam modelar isso (o estado de segurança é por Page).
+function fakeTab() {
+  const tab = {
+    _url: 'about:blank',
+    _hasPw: false, // o que o evaluate de senha vai responder
+    url: () => tab._url,
+    title: async () => 'T',
+    waitForLoadState: async () => {},
+    evaluate: async () => tab._hasPw,
+    screenshot: async () => Buffer.from('png'),
+  };
+  return tab;
+}
+
 test('navegação saindo de tela de senha: URL sem query/hash e sem print; passos seguintes na mesma página também', async () => {
   const { calls, session } = fakes();
   const rec = new Recorder(null, session);
-  // evento numa tela de login marca a página atual como "tem senha"
-  const loginPage = {
-    url: () => 'https://app.example.com/login',
-    title: async () => 'Login',
-    screenshot: async () => Buffer.from('png'),
-  };
-  await rec.onEvent(loginPage, { kind: 'click', ts: 1, pageHasPassword: true });
-  // submit do login: form GET vaza a senha na URL de destino
-  const homePage = {
-    url: () => 'https://app.example.com/home?pwd=SEGREDO#tk=SEGREDO',
-    title: async () => 'Home',
-    waitForLoadState: async () => {},
-    evaluate: async () => false, // destino não tem campo de senha
-    screenshot: async () => Buffer.from('png'),
-  };
-  await rec.onNavigation(homePage);
+  const tab = fakeTab();
+  // evento numa tela de login marca ESTA aba como "tem senha"
+  tab._url = 'https://app.example.com/login'; tab._hasPw = true;
+  await rec.onEvent(tab, { kind: 'click', ts: 1, pageHasPassword: true });
+  // submit do login na mesma aba: form GET vaza a senha na URL de destino
+  tab._url = 'https://app.example.com/home?pwd=SEGREDO#tk=SEGREDO'; tab._hasPw = false;
+  await rec.onNavigation(tab);
   assert.equal(calls[1].ev.url, 'https://app.example.com/home'); // sem query nem hash
   assert.equal(calls[1].shot, null); // sem print na chegada do login
   // clique subsequente na MESMA página: URL continua encurtada, print volta ao normal
-  await rec.onEvent(homePage, { kind: 'click', ts: 3, pageHasPassword: false });
+  await rec.onEvent(tab, { kind: 'click', ts: 3, pageHasPassword: false });
   assert.equal(calls[2].ev.url, 'https://app.example.com/home');
   assert.ok(Buffer.isBuffer(calls[2].shot));
   // navegação comum depois disso: URL completa e print normais
-  const listPage = { ...homePage, url: () => 'https://app.example.com/lista?aba=2' };
-  await rec.onNavigation(listPage);
+  tab._url = 'https://app.example.com/lista?aba=2';
+  await rec.onNavigation(tab);
   assert.equal(calls[3].ev.url, 'https://app.example.com/lista?aba=2');
   assert.ok(Buffer.isBuffer(calls[3].shot));
+});
+
+test('multi-aba: tela de senha na aba A não encurta URL nem suprime print de navegação na aba B', async () => {
+  const { calls, session } = fakes();
+  const rec = new Recorder(null, session);
+  const tabA = fakeTab();
+  const tabB = fakeTab();
+  // aba A está numa tela de login
+  tabA._url = 'https://app.example.com/login'; tabA._hasPw = true;
+  await rec.onEvent(tabA, { kind: 'click', ts: 1, pageHasPassword: true });
+  // navegação intercalada na aba B: NÃO veio de tela de senha
+  tabB._url = 'https://intranet.example.com/painel?aba=2';
+  await rec.onNavigation(tabB);
+  assert.equal(calls[1].ev.url, 'https://intranet.example.com/painel?aba=2'); // URL completa
+  assert.ok(Buffer.isBuffer(calls[1].shot)); // print normal
+  // evento na aba B (sem senha) não pode limpar a proteção da aba A:
+  await rec.onEvent(tabB, { kind: 'click', ts: 2, pageHasPassword: false });
+  tabA._url = 'https://app.example.com/home?pwd=SEGREDO'; tabA._hasPw = false;
+  await rec.onNavigation(tabA);
+  const navA = calls[calls.length - 1];
+  assert.equal(navA.ev.url, 'https://app.example.com/home'); // aba A continua protegida
+  assert.equal(navA.shot, null);
+});
+
+test('clique na página de destino durante o load não limpa a proteção da navegação (decisão no framenavigated)', async () => {
+  const { calls, session } = fakes();
+  const rec = new Recorder(null, session);
+  const tab = fakeTab();
+  tab._url = 'https://app.example.com/login'; tab._hasPw = true;
+  await rec.onEvent(tab, { kind: 'click', ts: 1, pageHasPassword: true });
+  // navegação sensível cujo load demora; um clique no destino chega no meio
+  tab._url = 'https://app.example.com/home?pwd=SEGREDO'; tab._hasPw = false;
+  let releaseLoad;
+  tab.waitForLoadState = () => new Promise((r) => { releaseLoad = r; });
+  const nav = rec.onNavigation(tab);
+  await new Promise((r) => setTimeout(r, 5)); // onNavigation parado no waitForLoadState
+  await rec.onEvent(tab, { kind: 'click', ts: 2, pageHasPassword: false });
+  releaseLoad();
+  await nav;
+  const navCall = calls.find((c) => c.ev.kind === 'navigation');
+  assert.equal(navCall.ev.url, 'https://app.example.com/home'); // segue sem query
+  assert.equal(navCall.shot, null); // e sem print
+  // o clique que chegou durante o load também saiu com a URL encurtada
+  const clickCall = calls.find((c) => c.ev.kind === 'click' && c.ev.ts === 2);
+  assert.equal(clickCall.ev.url, 'https://app.example.com/home');
 });
 
 test('falha no screenshot não derruba o evento (shot null)', async () => {
