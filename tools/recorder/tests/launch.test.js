@@ -6,16 +6,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { findChrome } from '../src/recorder/launch.js';
 
-test('findChrome devolve o primeiro candidato existente', async () => {
+test('findChrome returns the first candidate that exists', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
   const fake = path.join(dir, 'chrome.exe');
   await fs.writeFile(fake, '');
-  assert.equal(findChrome(['C:\\nao\\existe\\chrome.exe', fake]), fake);
+  assert.equal(findChrome(['C:\\does\\not\\exist\\chrome.exe', fake]), fake);
 });
 
-test('findChrome lança erro citando DOC_AGENT_CHROME quando nada existe', () => {
+test('findChrome throws an error mentioning DOC_AGENT_CHROME when nothing exists', () => {
   assert.throws(
-    () => findChrome(['C:\\nao\\existe\\a.exe', 'C:\\nao\\existe\\b.exe']),
+    () => findChrome(['C:\\does\\not\\exist\\a.exe', 'C:\\does\\not\\exist\\b.exe']),
     /DOC_AGENT_CHROME/,
   );
 });

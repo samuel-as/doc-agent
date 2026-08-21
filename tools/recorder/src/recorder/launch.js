@@ -18,8 +18,8 @@ export function findChrome(candidates = DEFAULT_CANDIDATES) {
     if (fs.existsSync(p)) return p;
   }
   throw new Error(
-    'Chrome/Edge não encontrado nos caminhos padrão. ' +
-    'Defina a variável de ambiente DOC_AGENT_CHROME com o caminho do executável.',
+    'Chrome/Edge not found in the default locations. ' +
+    'Set the DOC_AGENT_CHROME environment variable to the executable path.',
   );
 }
 
@@ -27,7 +27,7 @@ export async function launchBrowser({ profileDir, port = 9333, headless = false 
   const exe = findChrome();
   const args = [
     `--remote-debugging-port=${port}`,
-    `--user-data-dir=${profileDir}`, // Chrome 136+ exige perfil dedicado para CDP
+    `--user-data-dir=${profileDir}`, // Chrome 136+ requires a dedicated profile for CDP
     '--no-first-run',
     '--no-default-browser-check',
   ];
@@ -51,5 +51,5 @@ export async function launchBrowser({ profileDir, port = 9333, headless = false 
     await new Promise((r) => setTimeout(r, 250));
   }
   try { proc.kill(); } catch {}
-  throw new Error(`Não foi possível conectar ao navegador via CDP em ${endpoint}: ${lastErr}`);
+  throw new Error(`Could not connect to the browser over CDP at ${endpoint}: ${lastErr}`);
 }

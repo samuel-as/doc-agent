@@ -4,8 +4,8 @@ const NAV_DEDUP_MS = 1000;
 
 export function consolidate(events) {
   const steps = [];
-  const focusBySelector = new Map(); // último foco (click editável ou field-focus) por seletor
-  const lastCommitBySelector = new Map(); // último valor comitado por seletor (dedup Enter+focusout)
+  const focusBySelector = new Map(); // last focus (editable click or field-focus) per selector
+  const lastCommitBySelector = new Map(); // last committed value per selector (dedups Enter+focusout)
   let lastClick = null;
   let lastNav = null;
 
@@ -13,12 +13,12 @@ export function consolidate(events) {
     switch (ev.kind) {
       case 'field-focus':
         focusBySelector.set(ev.selector, ev);
-        lastCommitBySelector.delete(ev.selector); // novo foco: re-edição real pode repetir o valor
+        lastCommitBySelector.delete(ev.selector); // new focus: a real re-edit may legitimately repeat the value
         break;
 
       case 'click': {
         if (ev.isEditable) {
-          // clique em campo de texto é absorvido pelo passo fill; guarda print/coords
+          // a click on a text field is absorbed by the fill step; keep its screenshot/coords
           focusBySelector.set(ev.selector, ev);
           lastCommitBySelector.delete(ev.selector);
           break;
@@ -31,8 +31,8 @@ export function consolidate(events) {
 
       case 'field-commit': {
         if (!ev.isPassword && (ev.value == null || ev.value === '')) break;
-        // Enter comita e o focusout seguinte comita de novo com o mesmo valor:
-        // sem novo foco no seletor, o segundo commit é duplicata e cai fora.
+        // Enter commits, and the focusout right after commits again with the same value:
+        // with no new focus on the selector, the second commit is a duplicate and is dropped.
         if (lastCommitBySelector.has(ev.selector) && lastCommitBySelector.get(ev.selector) === ev.value) break;
         lastCommitBySelector.set(ev.selector, ev.value);
         const focus = focusBySelector.get(ev.selector) ?? null;

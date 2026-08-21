@@ -1,23 +1,24 @@
 // tools/recorder/build.mjs
-// Gera dist/doc-agent.mjs: bundle LEGÍVEL (sem minify) para rodar com o Node portátil.
+// Produces dist/doc-agent.mjs: a READABLE bundle (no minify) to run on the portable Node.
 import fs from 'node:fs';
 import * as esbuild from 'esbuild';
 
-// O playwright-core referencia 'electron' num caminho que nunca usamos (só usamos connectOverCDP).
-// Stub vazio evita erro de resolução no bundle.
+// playwright-core references 'electron' on a path we never take (we only use connectOverCDP).
+// An empty stub avoids a resolution error in the bundle.
 const stubs = {
   name: 'stubs',
   setup(build) {
     build.onResolve({ filter: /^electron(\/|$)/ }, (args) => ({ path: args.path, namespace: 'stub' }));
-    // chromium-bidi: dependência opcional do playwright-core para o protocolo BiDi (Firefox); só usamos CDP.
+    // chromium-bidi: optional playwright-core dependency for the BiDi protocol (Firefox); we only use CDP.
     build.onResolve({ filter: /^chromium-bidi(\/|$)/ }, (args) => ({ path: args.path, namespace: 'stub' }));
     build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'module.exports = {};' }));
   },
 };
 
-// O playwright-core lê estes dois JSONs em TEMPO DE EXECUÇÃO via require(caminho calculado com
-// __dirname) — nenhum stub de build resolve isso. Embutimos o conteúdo (≈3 KB) no banner e
-// interceptamos o require para o bundle ser 100% autônomo (roda de qualquer pasta, sem node_modules).
+// playwright-core reads these two JSON files at RUNTIME via require(path computed from
+// __dirname) — no build-time stub handles that. We inline their contents (~3 KB) in the
+// banner and intercept require so the bundle is fully self-contained (runs from any
+// folder, with no node_modules).
 const pwPackageJSON = fs.readFileSync('node_modules/playwright-core/package.json', 'utf8');
 const pwBrowsersJSON = fs.readFileSync('node_modules/playwright-core/browsers.json', 'utf8');
 
@@ -32,20 +33,20 @@ await esbuild.build({
   plugins: [stubs],
   banner: {
     js: [
-      '// doc-agent — bundle gerado por tools/recorder/build.mjs (esbuild, SEM minificação).',
-      '// O código-fonte canônico está em tools/recorder/src/. Este arquivo existe para',
-      '// executar sem npm install: runtime\\node.exe dist\\doc-agent.mjs <comando>',
+      '// doc-agent — bundle produced by tools/recorder/build.mjs (esbuild, NOT minified).',
+      '// The canonical source lives in tools/recorder/src/. This file exists so the tool',
+      '// runs without npm install: runtime\\node.exe dist\\doc-agent.mjs <command>',
       "import { createRequire as __createRequire } from 'node:module';",
       "import { fileURLToPath as __fileURLToPath } from 'node:url';",
       "import __path from 'node:path';",
-      '// __dirname/__filename: o código CJS do playwright-core convertido para ESM referencia os dois.',
+      '// __dirname/__filename: the playwright-core CJS code converted to ESM references both.',
       'const __filename = __fileURLToPath(import.meta.url);',
       'const __dirname = __path.dirname(__filename);',
-      '// package.json e browsers.json do playwright-core, embutidos no build (ver comentário no build.mjs).',
+      '// playwright-core package.json and browsers.json, inlined at build time (see the comment in build.mjs).',
       `const __pwPackageJSON = ${JSON.stringify(JSON.parse(pwPackageJSON))};`,
       `const __pwBrowsersJSON = ${JSON.stringify(JSON.parse(pwBrowsersJSON))};`,
       'const __rawRequire = __createRequire(import.meta.url);',
-      "const __pwPackageRoot = __path.join(__dirname, '..'); // packageRoot calculado pelo playwright-core em runtime",
+      "const __pwPackageRoot = __path.join(__dirname, '..'); // packageRoot computed by playwright-core at runtime",
       'const require = Object.assign((id) => {',
       "  if (id === __path.join(__pwPackageRoot, 'package.json')) return __pwPackageJSON;",
       "  if (id === __path.join(__pwPackageRoot, 'browsers.json')) return __pwBrowsersJSON;",
@@ -54,4 +55,4 @@ await esbuild.build({
     ].join('\n'),
   },
 });
-console.log('bundle gerado: dist/doc-agent.mjs');
+console.log('bundle written: dist/doc-agent.mjs');

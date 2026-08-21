@@ -22,8 +22,8 @@ export async function drawMarker(inputPng, { x, y }) {
     for (let px = x0; px <= x1; px++) {
       const d = Math.hypot(px - cx, py - cy);
       let alpha = 0;
-      if (d >= inner && d <= outer) alpha = 1;      // traço do anel
-      else if (d < inner) alpha = FILL_ALPHA;        // preenchimento translúcido
+      if (d >= inner && d <= outer) alpha = 1;      // ring stroke
+      else if (d < inner) alpha = FILL_ALPHA;        // translucent fill
       else continue;
       const i = (width * py + px) << 2;
       data[i] = Math.round(COLOR.r * alpha + data[i] * (1 - alpha));

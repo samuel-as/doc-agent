@@ -33,8 +33,8 @@ export function buildInitScript() {
         const v = el.getAttribute(attr);
         if (v && v.trim()) return v.trim().slice(0, 80);
       }
-      // el.value só serve de label em inputs tipo botão (<input type="submit" value="...">);
-      // nunca em campos editáveis — senão valor digitado (inclusive senha) vira label.
+      // el.value only works as a label on button-like inputs (<input type="submit" value="...">);
+      // never on editable fields — otherwise the typed value (a password, even) becomes the label.
       const isButtonLike = el.tagName === 'INPUT' &&
         ['button','submit','reset'].includes((el.type || '').toLowerCase());
       const text = (el.innerText || (isButtonLike ? el.value : '') || '').trim();
@@ -63,8 +63,8 @@ export function buildInitScript() {
 
     document.addEventListener('mousedown', (e) => {
       const el = e.target && e.target.closest ? e.target.closest(INTERACTIVE) : null;
-      if (!el) return;                       // clique em área vazia: ruído
-      if (el.tagName === 'SELECT') return;   // dropdown é tratado no change
+      if (!el) return;                       // click on empty space: noise
+      if (el.tagName === 'SELECT') return;   // dropdowns are handled on change
       send({
         kind: 'click', ts: Date.now(),
         label: labelFor(el), selector: cssPath(el),
@@ -102,8 +102,8 @@ export function buildInitScript() {
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
       const t = e.target;
-      // Em TEXTAREA/contenteditable, Enter insere quebra de linha — não é submissão:
-      // nada de commit parcial nem evento 'enter'.
+      // In a TEXTAREA/contenteditable, Enter inserts a line break — it is not a submit:
+      // no partial commit and no 'enter' event.
       if (t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (isEditable(t)) commit(t);
       send({

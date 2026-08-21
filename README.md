@@ -1,155 +1,157 @@
 # doc-agent
 
-[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](LICENSE)
-![Plataforma: Windows](https://img.shields.io/badge/plataforma-Windows-0078D4?logo=windows&logoColor=white)
-![Node.js 24 portátil](https://img.shields.io/badge/Node.js-24.x%20port%C3%A1til-5FA04E?logo=nodedotjs&logoColor=white)
-![Navegador: Chrome ou Edge](https://img.shields.io/badge/navegador-Chrome%20%7C%20Edge-4285F4?logo=googlechrome&logoColor=white)
-![Feito para Claude Code](https://img.shields.io/badge/Claude%20Code-skills-D97757)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
+![Node.js 24 portable](https://img.shields.io/badge/Node.js-24.x%20portable-5FA04E?logo=nodedotjs&logoColor=white)
+![Browser: Chrome or Edge](https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-4285F4?logo=googlechrome&logoColor=white)
+![Built for Claude Code](https://img.shields.io/badge/Claude%20Code-skills-D97757)
 
-**Documente um procedimento executando-o.** Você abre o navegador e faz o processo
-normalmente; o doc-agent grava cada passo com print de tela e o Claude Code transforma
-isso num passo a passo em markdown — com PDF opcional.
+**Document a procedure by performing it.** You open the browser and do the process as
+usual; doc-agent records every step with a screenshot, and Claude Code turns that into a
+step-by-step guide in markdown — with an optional PDF.
 
 ```
-você executa no navegador  →  o gravador registra passos + prints  →  o Claude escreve a doc
-        (5 minutos)                    (automático)                       (automático)
+you run it in the browser  →  the recorder logs steps + screenshots  →  Claude writes the doc
+       (5 minutes)                        (automatic)                        (automatic)
 ```
 
-Nada de escrever tutorial à mão, nada de recortar print, nada de manter a doc sincronizada
-com telas que mudaram: é mais rápido regravar.
+No writing tutorials by hand, no cropping screenshots, no keeping docs in sync with
+screens that changed: re-recording is faster.
 
 ---
 
-## Requisitos
+## Requirements
 
-| O quê | Por quê |
+| What | Why |
 |---|---|
-| Windows 10/11 | o bootstrap e o runtime são `.ps1` + `node.exe` |
-| Google Chrome **ou** Microsoft Edge | o gravador se conecta ao navegador por CDP |
-| [Claude Code](https://claude.com/claude-code) | executa as skills `/documentar` e `/gerar-doc` |
+| Windows 10/11 | the bootstrap and the runtime are `.ps1` + `node.exe` |
+| Google Chrome **or** Microsoft Edge | the recorder attaches to the browser over CDP |
+| [Claude Code](https://claude.com/claude-code) | runs the `/document` and `/generate-doc` skills |
 
-Você **não** precisa instalar Node, npm ou qualquer dependência: na primeira execução o
-próprio projeto baixa o Node portátil oficial (zip pinado do `nodejs.org`) para `runtime/`,
-sem admin, sem PATH e sem mexer no registro.
+You do **not** need to install Node, npm or any dependency: on the first run the project
+downloads the official portable Node (pinned zip from `nodejs.org`) into `runtime/` — no
+admin rights, no PATH changes, no registry.
 
-## Instalação
-
-```bash
-git clone https://github.com/<seu-usuario>/doc-agent.git
-```
-
-Abra o Claude Code na pasta clonada. Pronto — as skills já estão em `.claude/skills/`.
-
-## Uso
-
-### Documentar um procedimento novo
-
-Dentro do Claude Code:
-
-```
-/documentar abertura-chamado-vpn
-```
-
-O que acontece:
-
-1. O runtime é preparado (silencioso se já estiver ok).
-2. Abre um navegador de gravação com perfil próprio.
-3. **Você executa o procedimento normalmente.**
-4. **Feche o navegador** para encerrar — a gravação é consolidada e a doc é escrita.
-
-Na primeira gravação, logue nos sistemas nesse navegador: o perfil fica salvo em
-`browser-profile/` e as próximas gravações já começam autenticadas.
-
-### Regerar a doc de uma gravação antiga
-
-```
-/gerar-doc sessions/2026-08-19-abertura-chamado-vpn
-```
-
-Útil para refazer o texto sem repetir o procedimento — ou para gerar o PDF depois.
-
-### Usar o CLI direto (sem Claude Code)
-
-O bundle é autocontido; só a escrita do texto depende do Claude.
+## Install
 
 ```bash
-runtime/node.exe dist/doc-agent.mjs record abertura-chamado-vpn
-runtime/node.exe dist/doc-agent.mjs pdf docs/abertura-chamado-vpn/README.md
+git clone https://github.com/<your-user>/doc-agent.git
 ```
 
-## O que sai no final
+Open Claude Code in the cloned folder. That is it — the skills are already in `.claude/skills/`.
+
+## Usage
+
+### Document a new procedure
+
+Inside Claude Code:
 
 ```
-sessions/2026-08-19-abertura-chamado-vpn/   ← gravação bruta (local, fora do git)
-├── session.json                            ← passos consolidados
-└── shots/step-001.png ...                  ← prints, com o clique marcado em vermelho
-
-docs/abertura-chamado-vpn/                  ← documentação gerada (local, fora do git)
-├── README.md                               ← passo a passo em pt-BR
-├── img/passo-01.png ...                    ← só os prints referenciados
-└── abertura-chamado-vpn.pdf                ← opcional
+/document vpn-ticket-request
 ```
 
-O texto sai em tom imperativo ("Clique em **Salvar**"), com micro-ações agrupadas em etapas
-lógicas — um formulário inteiro vira um passo, não dez.
+What happens:
 
-## Privacidade e segurança
+1. The runtime is prepared (silent when it is already fine).
+2. A recording browser opens with its own profile.
+3. **You run the procedure as usual.**
+4. **Close the browser** to finish — the recording is consolidated and the doc is written.
 
-O gravador foi desenhado assumindo que você vai passar por telas de login:
+On the first recording, sign in to your systems in that browser: the profile is stored in
+`browser-profile/`, so later recordings start already authenticated.
 
-- **Tela com campo de senha não gera print.** Na dúvida (falha ao inspecionar a página),
-  também não gera.
-- **Valores de senha nunca são registrados** — o passo fica com `value: null`.
-- **Navegação que sai de uma tela de senha** tem a URL gravada sem `query` nem `#fragment`
-  (um submit de login pode carregar credencial ali) e não gera print. A proteção continua
-  enquanto a página for a mesma.
-- **O estado é por aba:** uma tela de login na aba A não suprime prints da aba B.
-- **Nada sai da sua máquina pelo gravador.** `sessions/`, `browser-profile/`, `runtime/` e a
-  documentação gerada são locais e estão no `.gitignore` — só as specs do próprio projeto,
-  em `docs/superpowers/`, são versionadas.
+### Regenerate the doc of an older recording
 
-Ainda assim: **confira os prints antes de divulgar a documentação**. Se aparecer dado
-sensível numa tela que não é de senha, ele estará na imagem.
+```
+/generate-doc sessions/2026-08-19-vpn-ticket-request
+```
 
-## Estrutura do repositório
+Handy to rewrite the text without redoing the procedure — or to produce the PDF later.
+
+### Use the CLI directly (without Claude Code)
+
+The bundle is self-contained; only the writing of the text depends on Claude.
+
+```bash
+runtime/node.exe dist/doc-agent.mjs record vpn-ticket-request
+runtime/node.exe dist/doc-agent.mjs pdf docs/vpn-ticket-request/README.md
+```
+
+## What you get
+
+```
+sessions/2026-08-19-vpn-ticket-request/   ← raw recording (local, outside git)
+├── session.json                          ← consolidated steps
+└── shots/step-001.png ...                ← screenshots, with the click marked in red
+
+docs/vpn-ticket-request/                  ← generated documentation (local, outside git)
+├── README.md                             ← step-by-step guide
+├── img/step-01.png ...                   ← only the screenshots it references
+└── vpn-ticket-request.pdf                ← optional
+```
+
+The text comes out in the imperative ("Click **Save**"), with micro-actions grouped into
+logical steps — a whole form becomes one step, not ten. It is written in the **language of
+the recorded screens**, so a Portuguese UI produces a Portuguese guide and an English UI
+produces an English one.
+
+## Privacy and security
+
+The recorder was designed assuming you will walk through login screens:
+
+- **A screen with a password field produces no screenshot.** When in doubt (inspecting the
+  page failed), it takes none either.
+- **Password values are never recorded** — the step keeps `value: null`.
+- **A navigation leaving a password screen** has its URL recorded without `query` or
+  `#fragment` (a login submit can carry a credential there) and produces no screenshot.
+  The protection holds as long as the page stays the same.
+- **State is per tab:** a login screen in tab A does not suppress screenshots in tab B.
+- **Nothing leaves your machine through the recorder.** `sessions/`, `browser-profile/`,
+  `runtime/` and the generated documentation are local and listed in `.gitignore` — only
+  this project's own specs, under `docs/superpowers/`, are versioned.
+
+Even so: **review the screenshots before sharing the documentation.** If sensitive data
+shows up on a screen that is not a password screen, it will be in the image.
+
+## Repository layout
 
 ```
 .claude/skills/
-├── documentar/       ← skill do fluxo completo (+ bootstrap.ps1 do runtime)
-└── gerar-doc/        ← skill que escreve a doc a partir de uma sessão
-dist/doc-agent.mjs    ← bundle do gravador, versionado (é o que roda no cliente)
-tools/recorder/       ← código-fonte do gravador, testes e smokes
-docs/superpowers/     ← specs e planos de implementação do projeto
+├── document/         ← skill for the full flow (+ bootstrap.ps1 for the runtime)
+└── generate-doc/     ← skill that writes the doc from a session
+dist/doc-agent.mjs    ← recorder bundle, versioned (this is what runs on the client)
+tools/recorder/       ← recorder source code, tests and smoke tests
+docs/superpowers/     ← design specs and implementation plans (written in pt-BR)
 ```
 
-O `dist/doc-agent.mjs` é commitado de propósito: é ele que permite clonar e usar sem
+`dist/doc-agent.mjs` is committed on purpose: it is what makes clone-and-use work without
 `npm install`.
 
-## Desenvolvimento
+## Development
 
-Tudo dentro de `tools/recorder` (aí sim com `npm install`):
+Everything lives in `tools/recorder` (there you do run `npm install`):
 
 ```bash
-npm test               # 31 testes unitários (node --test), sem navegador
-npm run build          # regera dist/doc-agent.mjs — commite o bundle junto
-npm run smoke          # pipeline ponta a ponta (exige Chrome/Edge)
-npm run smoke:security # supressão de prints e URLs em telas de senha
-npm run smoke:pdf      # exportação em PDF
+npm test               # 31 unit tests (node --test), no browser needed
+npm run build          # regenerates dist/doc-agent.mjs — commit the bundle along
+npm run smoke          # end-to-end pipeline (requires Chrome/Edge)
+npm run smoke:security # screenshot and URL suppression on password screens
+npm run smoke:pdf      # PDF export
 ```
 
-- Alterou `src/`? Rode `npm run build` e commite o `dist/` no mesmo commit.
-- Atualizar o Node portátil: edite `$NodeVersion` em
-  `.claude/skills/documentar/scripts/bootstrap.ps1`.
+- Changed `src/`? Run `npm run build` and commit `dist/` in the same commit.
+- To update the portable Node: edit `$NodeVersion` in
+  `.claude/skills/document/scripts/bootstrap.ps1`.
 
-## Solução de problemas
+## Troubleshooting
 
-| Sintoma | O que fazer |
+| Symptom | What to do |
 |---|---|
-| "Chrome/Edge não encontrado" | defina `DOC_AGENT_CHROME` com o caminho do executável |
-| Falha no download do runtime | a saída do bootstrap traz o link do zip e a pasta de destino para a instalação manual |
-| A gravação terminou sem passos | o navegador foi fechado sem nenhuma ação registrada — regrave |
-| Sessão inválida ou vazia | não gere doc parcial: regrave com `/documentar <nome>` |
+| "Chrome/Edge not found" | set `DOC_AGENT_CHROME` to the executable path |
+| Runtime download failed | the bootstrap output has the zip link and the target folder for a manual install |
+| The recording ended with no steps | the browser was closed without any recorded action — record again |
+| Invalid or empty session | do not generate a partial doc: record again with `/document <name>` |
 
-## Licença
+## License
 
 [MIT](LICENSE) © Samuel Alves

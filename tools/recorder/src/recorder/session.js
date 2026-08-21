@@ -37,7 +37,7 @@ export class SessionWriter {
         finalShot = `shots/step-${String(step.index).padStart(3, '0')}.png`;
         let buf = await fs.readFile(path.join(this.dir, step.screenshot));
         if (step.coords) {
-          try { buf = await drawMarker(buf, step.coords); } catch { /* print sem marcador é melhor que sem print */ }
+          try { buf = await drawMarker(buf, step.coords); } catch { /* a screenshot without the marker beats no screenshot */ }
         }
         await fs.writeFile(path.join(this.dir, finalShot), buf);
       }

@@ -1,6 +1,6 @@
-﻿# .claude/skills/documentar/scripts/bootstrap.ps1
-# Garante o Node portátil oficial em <repo>\runtime\node.exe (versão pinada).
-# Idempotente: com o runtime correto presente, não faz nada. Sem admin, sem PATH, sem registro.
+# .claude/skills/document/scripts/bootstrap.ps1
+# Ensures the official portable Node at <repo>\runtime\node.exe (pinned version).
+# Idempotent: does nothing when the correct runtime is present. No admin, no PATH, no registry.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
@@ -15,7 +15,7 @@ if (Test-Path $NodeExe) {
     Write-Output "runtime ok ($current)"
     exit 0
   }
-  Write-Output "runtime desatualizado ($current -> $NodeVersion); reinstalando..."
+  Write-Output "runtime out of date ($current -> $NodeVersion); reinstalling..."
   Remove-Item -Recurse -Force $RuntimeDir
 }
 
@@ -24,32 +24,32 @@ $url = "https://nodejs.org/dist/$NodeVersion/$zipBase.zip"
 $tmpZip = Join-Path $env:TEMP "$zipBase.zip"
 $tmpExtract = Join-Path $env:TEMP "$zipBase-extract"
 
-Write-Output "Baixando o Node portátil oficial: $url"
+Write-Output "Downloading the official portable Node: $url"
 try {
   Invoke-WebRequest -Uri $url -OutFile $tmpZip -UseBasicParsing
 } catch {
-  Write-Output 'FALHA no download (rede/proxy).'
-  Write-Output "Plano B manual (1 passo): baixe $url e extraia o CONTEUDO da pasta $zipBase para: $RuntimeDir"
+  Write-Output 'DOWNLOAD FAILED (network/proxy).'
+  Write-Output "Manual plan B (1 step): download $url and extract the CONTENTS of the $zipBase folder to: $RuntimeDir"
   exit 1
 }
 
 if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract }
-# Extrai com .NET (mais rápido que Expand-Archive e não mascara o erro real) e
-# tenta de novo em caso de lock transitório de antivírus nos arquivos recém-criados.
+# Extract with .NET (faster than Expand-Archive and it does not hide the real error) and
+# retry on a transient antivirus lock over the freshly created files.
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$maxTentativas = 3
-for ($tentativa = 1; $tentativa -le $maxTentativas; $tentativa++) {
+$maxAttempts = 3
+for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
   try {
     [System.IO.Compression.ZipFile]::ExtractToDirectory($tmpZip, $tmpExtract)
     break
   } catch {
     if (Test-Path $tmpExtract) { try { Remove-Item -Recurse -Force $tmpExtract -ErrorAction Stop } catch {} }
-    if ($tentativa -eq $maxTentativas) {
-      Write-Output "FALHA ao extrair o zip apos $maxTentativas tentativas: $($_.Exception.Message)"
-      Write-Output "Plano B manual (1 passo): extraia $tmpZip (o CONTEUDO da pasta $zipBase) para: $RuntimeDir"
+    if ($attempt -eq $maxAttempts) {
+      Write-Output "FAILED to extract the zip after $maxAttempts attempts: $($_.Exception.Message)"
+      Write-Output "Manual plan B (1 step): extract $tmpZip (the CONTENTS of the $zipBase folder) to: $RuntimeDir"
       exit 1
     }
-    Write-Output "extracao falhou (tentativa $tentativa/$maxTentativas; antivirus?); tentando de novo..."
+    Write-Output "extraction failed (attempt $attempt/$maxAttempts; antivirus?); trying again..."
     Start-Sleep -Seconds 2
   }
 }
@@ -60,7 +60,7 @@ Remove-Item -Recurse -Force $tmpExtract
 
 $installed = (& $NodeExe --version).Trim()
 if ($installed -ne $NodeVersion) {
-  Write-Output "ERRO: versao instalada ($installed) difere da pinada ($NodeVersion)"
+  Write-Output "ERROR: installed version ($installed) differs from the pinned one ($NodeVersion)"
   exit 1
 }
-Write-Output "runtime pronto ($installed)"
+Write-Output "runtime ready ($installed)"

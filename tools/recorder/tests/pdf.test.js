@@ -3,12 +3,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderHtml } from '../src/pdf.js';
 
-test('renderHtml produz documento completo com título, imagem e negrito', () => {
-  const html = renderHtml('# Título do Doc\n\n![Passo 1](img/passo-01.png)\n\nClique em **Salvar**.');
+test('renderHtml produces a full document with title, image and bold text', () => {
+  const html = renderHtml('# Doc Title\n\n![Step 1](img/step-01.png)\n\nClick **Save**.');
   assert.ok(html.startsWith('<!doctype html>'));
   assert.ok(html.includes('charset="utf-8"'));
   assert.ok(html.includes('<style>'));
-  assert.ok(/<h1[^>]*>Título do Doc<\/h1>/.test(html));
-  assert.ok(html.includes('<img src="img/passo-01.png"'));
-  assert.ok(html.includes('<strong>Salvar</strong>'));
+  assert.ok(/<h1[^>]*>Doc Title<\/h1>/.test(html));
+  assert.ok(html.includes('<img src="img/step-01.png"'));
+  assert.ok(html.includes('<strong>Save</strong>'));
 });

@@ -17,14 +17,14 @@ const CSS = `
 `;
 
 export function renderHtml(markdown) {
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>${CSS}</style></head><body>${marked.parse(markdown)}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>${marked.parse(markdown)}</body></html>`;
 }
 
 export async function exportPdf(readmePath) {
   const mdAbs = path.resolve(readmePath);
   const dir = path.dirname(mdAbs);
   const markdown = await fs.readFile(mdAbs, 'utf8');
-  const htmlPath = path.join(dir, '.doc-agent-print.html'); // ao lado do README: img/ relativo resolve
+  const htmlPath = path.join(dir, '.doc-agent-print.html'); // next to the README so relative img/ paths resolve
   const slug = path.basename(dir);
   const pdfPath = path.join(dir, `${slug}.pdf`);
   const profileDir = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-pdf-'));
@@ -37,7 +37,7 @@ export async function exportPdf(readmePath) {
     const context = launched.browser.contexts()[0];
     const page = context.pages()[0] ?? (await context.newPage());
     await page.goto('file:///' + htmlPath.replaceAll('\\', '/'), { waitUntil: 'load' });
-    await page.waitForTimeout(300); // imagens file:// assentarem
+    await page.waitForTimeout(300); // let file:// images settle
     await page.pdf({
       path: pdfPath,
       format: 'A4',

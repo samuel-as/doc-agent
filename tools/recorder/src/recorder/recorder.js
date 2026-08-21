@@ -8,10 +8,10 @@ export class Recorder {
     this.context = context;
     this.session = session;
     this._shotChain = Promise.resolve();
-    // Estado de segurança POR ABA (Page): os fatos "esta página tem campo de senha"
-    // e "esta página foi alcançada a partir de uma tela de senha" são de cada aba —
-    // num contexto multi-aba, uma tela de login na aba A não pode suprimir prints
-    // nem encurtar URLs de navegações da aba B (e vice-versa).
+    // PER-TAB security state: "this page has a password field" and "this page was
+    // reached from a password screen" are facts about a single tab — in a multi-tab
+    // context, a login screen in tab A must not suppress screenshots nor shorten
+    // URLs for navigations in tab B (and vice versa).
     this._pageState = new WeakMap(); // Page -> { hadPassword, sensitiveBase }
   }
 
@@ -34,7 +34,7 @@ export class Recorder {
   }
 
   async attach(page) {
-    // páginas já abertas não recebem o init script até navegar — injeta direto
+    // already-open pages only get the init script after a navigation — inject it now
     await page.evaluate(buildInitScript()).catch(() => {});
     page.on('framenavigated', (frame) => {
       if (frame !== page.mainFrame()) return;
@@ -43,12 +43,12 @@ export class Recorder {
   }
 
   async onNavigation(page) {
-    // Navegação que SAI de uma tela de senha é sensível: um submit de login pode
-    // carregar credenciais na URL (form GET, token em query/fragment). Nesse caso a
-    // URL é registrada sem query/hash e o print é suprimido; enquanto a página
-    // resultante for a mesma, as URLs dos passos seguintes também são encurtadas.
-    // A decisão é tomada AQUI, síncrona no framenavigated, antes de qualquer await:
-    // um evento na página de destino durante o carregamento não pode limpar a flag.
+    // A navigation LEAVING a password screen is sensitive: a login submit can carry
+    // credentials in the URL (GET form, token in the query/fragment). In that case the
+    // URL is recorded without query/hash and the screenshot is suppressed; while the
+    // resulting page stays the same, the URLs of the following steps are shortened too.
+    // The decision is made HERE, synchronously in framenavigated, before any await:
+    // an event on the destination page during loading must not clear the flag.
     const st = this._stateFor(page);
     const cameFromPassword = st.hadPassword;
     const applySensitivity = () => {
@@ -56,14 +56,14 @@ export class Recorder {
       if (cameFromPassword) st.sensitiveBase = base;
       else if (base !== st.sensitiveBase) st.sensitiveBase = null;
     };
-    applySensitivity(); // proteção vale desde já para eventos que cheguem durante o load
+    applySensitivity(); // protection applies right away to events arriving during the load
     await page.waitForLoadState('load', { timeout: 10_000 }).catch(() => {});
-    await page.evaluate(buildInitScript()).catch(() => {}); // garante instrumentação pós-navegação
+    await page.evaluate(buildInitScript()).catch(() => {}); // re-instrument after the navigation
     const hasPw = await page
       .evaluate(`!!document.querySelector('input[type="password"]')`)
-      .catch(() => true); // na dúvida, não fotografa
+      .catch(() => true); // when in doubt, do not take a screenshot
     st.hadPassword = hasPw;
-    applySensitivity(); // reaplica com a URL final (redirecionamentos durante o load)
+    applySensitivity(); // reapply with the final URL (redirects during the load)
     const shot = hasPw || cameFromPassword ? null : await this.screenshot(page);
     await this.session.addEvent({
       kind: 'navigation', ts: Date.now(),
@@ -87,23 +87,23 @@ export class Recorder {
     }, shot);
   }
 
-  // Corta query/hash da URL quando ESTA aba foi alcançada a partir de uma tela
-  // de senha (ver onNavigation) — credenciais nunca vão para o session.json.
+  // Strips query/hash from the URL when THIS tab was reached from a password
+  // screen (see onNavigation) — credentials never reach session.json.
   _safeUrl(page) {
     const url = page.url();
     const base = url.split(/[?#]/)[0];
     return this._stateFor(page).sensitiveBase === base ? base : url;
   }
 
-  // Serializa as capturas AQUI, não só no playwright: o playwright já enfileira
-  // screenshots por página, mas o timeout de cada page.screenshot() conta a partir
-  // da CHAMADA — sob rajada de eventos, uma captura pendurada (corrida com o commit
-  // de uma navegação fica sem resposta do Chrome até o timeout de 3s) consumia o
-  // orçamento de todas as que esperavam na fila e todas voltavam null. Encadeando
-  // aqui, cada captura só chama page.screenshot() com o orçamento inteiro.
+  // Screenshots are serialized HERE, not only inside playwright: playwright already
+  // queues screenshots per page, but each page.screenshot() timeout counts from the
+  // CALL — under a burst of events, one hanging capture (a race with a navigation
+  // commit leaves Chrome unresponsive until the 3s timeout) ate the budget of every
+  // capture waiting in line and they all came back null. Chaining them here, each
+  // capture only calls page.screenshot() with its full budget.
   screenshot(page) {
     const shot = this._shotChain.then(() => this._capture(page));
-    this._shotChain = shot; // _capture nunca rejeita, a corrente nunca quebra
+    this._shotChain = shot; // _capture never rejects, so the chain never breaks
     return shot;
   }
 
@@ -111,8 +111,8 @@ export class Recorder {
     try {
       return await page.screenshot({ scale: 'css', timeout: 3000 });
     } catch (e) {
-      if (process.env.DOC_AGENT_DEBUG) console.error('DEBUG screenshot falhou:', e);
-      return null; // print falhou: passo segue sem imagem
+      if (process.env.DOC_AGENT_DEBUG) console.error('DEBUG screenshot failed:', e);
+      return null; // screenshot failed: the step goes on without an image
     }
   }
 }

@@ -1,28 +1,28 @@
-# Dependências do gravador (o usuário final não instala nada)
+# Recorder dependencies (end users install nothing)
 node_modules/
 
-# Runtime do Node baixado pelo bootstrap na primeira execução
+# Node runtime downloaded by the bootstrap on first run
 runtime/
 
-# Artefatos locais de cada gravação: podem conter telas de sistemas internos
+# Local artifacts of each recording: they may contain internal screens
 sessions/
 browser-profile/
 
-# Documentação gerada fica só na máquina de quem gravou.
-# Exceção: as specs e planos do próprio projeto, em docs/superpowers/.
+# Generated documentation stays on the machine that recorded it.
+# Exception: this project's own specs and plans, under docs/superpowers/.
 docs/*
 !docs/superpowers/
 
-# HTML temporário da exportação em PDF (removido no finally; sobra se o processo morrer)
+# Temporary HTML from the PDF export (removed in the finally; left behind if the process dies)
 .doc-agent-print.html
 
-# Configuração local do Claude Code (permissões por máquina)
+# Local Claude Code configuration (per-machine permissions)
 .claude/settings.local.json
 
-# Estado local do fluxo Superpowers
+# Local state of the Superpowers workflow
 .superpowers/
 
-# Logs e lixo de SO/editor
+# Logs and OS/editor noise
 *.log
 npm-debug.log*
 Thumbs.db

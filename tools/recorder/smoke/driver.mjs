@@ -1,9 +1,9 @@
 // tools/recorder/smoke/driver.mjs
-// Smoke do BUNDLE com Chrome real: inicia dist/doc-agent.mjs em background,
-// dirige o navegador por um 2º cliente CDP (eventos confiáveis), encerra
-// fechando o navegador (Browser.close via CDP) e valida a sessão gravada.
-// Uso: node smoke/driver.mjs            → fixture sem senha (pipeline completo)
-//      node smoke/driver.mjs security   → fixture com senha (invariantes de segurança)
+// Smoke test of the BUNDLE against a real Chrome: starts dist/doc-agent.mjs in the
+// background, drives the browser through a 2nd CDP client (trusted events), ends by
+// closing the browser (Browser.close over CDP) and validates the recorded session.
+// Usage: node smoke/driver.mjs            -> password-free fixture (full pipeline)
+//        node smoke/driver.mjs security   -> password fixture (security invariants)
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,8 +14,8 @@ import { PNG } from 'pngjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
 const security = process.argv[2] === 'security';
-const name = security ? 'smoke-seguranca' : 'smoke-form';
-const SENTINEL = 'SENHA-SENTINELA-123';
+const name = security ? 'smoke-security' : 'smoke-form';
+const SENTINEL = 'PASSWORD-SENTINEL-123';
 const failures = [];
 const check = (ok, msg) => { if (!ok) failures.push(msg); };
 const fileUrl = (p) => 'file:///' + p.replaceAll('\\', '/');
@@ -37,79 +37,79 @@ for (let i = 0; i < 60 && !driver; i++) {
   try { driver = await chromium.connectOverCDP('http://127.0.0.1:9333'); }
   catch { await new Promise((r) => setTimeout(r, 500)); }
 }
-if (!driver) { cli.kill(); throw new Error('CDP não subiu em 30s. Saída do CLI:\n' + cliOut); }
+if (!driver) { cli.kill(); throw new Error('CDP did not come up within 30s. CLI output:\n' + cliOut); }
 
 const context = driver.contexts()[0];
 const page = context.pages()[0] ?? (await context.waitForEvent('page'));
 
 if (security) {
   await page.goto(fileUrl(path.join(here, 'fixtures', 'login.html')));
-  await page.click('#user'); await page.fill('#user', 'usuario.demo');
+  await page.click('#user'); await page.fill('#user', 'demo.user');
   await page.click('#pwd'); await page.fill('#pwd', SENTINEL);
-  await page.click('#entrar');
+  await page.click('#login');
   await page.waitForLoadState('load');
 } else {
   await page.goto(fileUrl(path.join(here, 'fixtures', 'form.html')));
-  await page.click('#motivo'); await page.fill('#motivo', 'chamado de teste');
-  await page.click('#detalhe'); await page.fill('#detalhe', 'duas linhas');
-  await page.selectOption('#tipo', 'Requisição');
-  await page.click('#urgente');
-  await page.click('#enviar');
+  await page.click('#reason'); await page.fill('#reason', 'test ticket');
+  await page.click('#detail'); await page.fill('#detail', 'two lines');
+  await page.selectOption('#type', 'Request');
+  await page.click('#urgent');
+  await page.click('#submit');
   await page.waitForLoadState('load');
 }
-// Espera os prints assentarem antes de fechar o navegador. Precisa ser > 3s: uma
-// captura disparada durante o commit da navegação do submit fica sem resposta do
-// Chrome e só é abortada no timeout de 3s do gravador; as demais fluem depois disso
-// (o gravador encadeia as capturas, cada uma com orçamento inteiro — medido: fila
-// drena em ~4,2s no pior caso neste hardware). 800ms fechava o navegador cedo demais
-// e nenhum print de clique sobrevivia.
+// Let the screenshots settle before closing the browser. This must be > 3s: a capture
+// fired during the commit of the submit navigation gets no answer from Chrome and is
+// only aborted by the recorder 3s timeout; the rest flow after that (the recorder
+// chains captures, each with its full budget — measured: the queue drains in ~4.2s in
+// the worst case on this hardware). 800ms closed the browser too early and no click
+// screenshot survived.
 await new Promise((r) => setTimeout(r, 6000));
 
-// Encerra a gravação FECHANDO o navegador de verdade (gatilho disconnected do CLI)
+// Stop the recording by actually CLOSING the browser (the disconnected trigger in the CLI)
 const cdp = await context.newCDPSession(page);
 await cdp.send('Browser.close').catch(() => {});
 
 const exitCode = await cliExit;
-check(exitCode === 0, `CLI saiu com ${exitCode}; saída:\n${cliOut}`);
+check(exitCode === 0, `the CLI exited with ${exitCode}; output:\n${cliOut}`);
 
 const raw = await fs.readFile(path.join(sessionDir, 'session.json'), 'utf8');
 const session = JSON.parse(raw);
 const types = session.steps.map((s) => s.type);
 
 if (security) {
-  check(!raw.includes(SENTINEL), 'VALOR DA SENHA VAZOU para o session.json');
+  check(!raw.includes(SENTINEL), 'THE PASSWORD VALUE LEAKED into session.json');
   const pwdFill = session.steps.find((s) => s.type === 'fill' && s.selector === '#pwd');
-  check(!!pwdFill, 'passo fill do campo de senha não registrado');
-  check(pwdFill?.isPassword === true && pwdFill?.value === null, 'campo de senha sem máscara correta');
-  check(session.steps.every((s) => s.screenshot === null), 'print gerado em página com campo de senha');
+  check(!!pwdFill, 'fill step for the password field was not recorded');
+  check(pwdFill?.isPassword === true && pwdFill?.value === null, 'password field is not masked correctly');
+  check(session.steps.every((s) => s.screenshot === null), 'screenshot taken on a page with a password field');
   const shots = await fs.readdir(path.join(sessionDir, 'shots')).catch(() => []);
-  check(shots.length === 0, `shots/ deveria estar vazio, tem: ${shots.join(', ')}`);
+  check(shots.length === 0, `shots/ should be empty, it has: ${shots.join(', ')}`);
 } else {
   const fills = session.steps.filter((s) => s.type === 'fill');
-  check(fills.some((s) => s.value === 'chamado de teste'), 'fill do Motivo ausente');
-  check(fills.some((s) => s.value === 'duas linhas'), 'fill do Detalhe ausente');
-  check(fills.length === 2, `esperava 2 fills, veio ${fills.length} (dedup quebrado?)`);
-  check(session.steps.some((s) => s.type === 'select' && s.value === 'Requisição'), 'select ausente');
-  check(session.steps.filter((s) => s.type === 'click').length >= 2, 'cliques de checkbox/submit ausentes');
-  check(types.includes('navigation'), 'navegação ausente');
+  check(fills.some((s) => s.value === 'test ticket'), 'fill of Reason missing');
+  check(fills.some((s) => s.value === 'two lines'), 'fill of Detail missing');
+  check(fills.length === 2, `expected 2 fills, got ${fills.length} (dedup broken?)`);
+  check(session.steps.some((s) => s.type === 'select' && s.value === 'Request'), 'select missing');
+  check(session.steps.filter((s) => s.type === 'click').length >= 2, 'checkbox/submit clicks missing');
+  check(types.includes('navigation'), 'navigation missing');
   const withShot = session.steps.filter((s) => s.screenshot);
-  check(withShot.length > 0, 'nenhum print gerado');
-  // marcador: pelo menos um print de clique tem pixels do anel (#e0245e puro no traço)
+  check(withShot.length > 0, 'no screenshot was taken');
+  // marker: at least one click screenshot has ring pixels (pure #e0245e on the stroke)
   const clickShot = session.steps.find((s) => s.type === 'click' && s.screenshot);
-  check(!!clickShot, 'nenhum clique com print');
+  check(!!clickShot, 'no click with a screenshot');
   if (clickShot) {
     const png = PNG.sync.read(await fs.readFile(path.join(sessionDir, clickShot.screenshot.replaceAll('/', path.sep))));
     let markerPixels = 0;
     for (let i = 0; i < png.data.length; i += 4) {
       if (png.data[i] === 224 && png.data[i + 1] === 36 && png.data[i + 2] === 94) markerPixels++;
     }
-    check(markerPixels > 50, `anel do marcador não encontrado (pixels exatos: ${markerPixels})`);
+    check(markerPixels > 50, `marker ring not found (exact pixels: ${markerPixels})`);
   }
 }
 
 if (failures.length) {
-  console.error(`SMOKE ${security ? 'SECURITY' : 'FORM'} FALHOU:`);
+  console.error(`${security ? 'SECURITY' : 'FORM'} SMOKE FAILED:`);
   for (const f of failures) console.error(' - ' + f);
   process.exit(1);
 }
-console.log(`SMOKE ${security ? 'SECURITY' : 'FORM'} OK (${session.steps.length} passos em ${path.relative(repoRoot, sessionDir)})`);
+console.log(`${security ? 'SECURITY' : 'FORM'} SMOKE OK (${session.steps.length} steps at ${path.relative(repoRoot, sessionDir)})`);
