@@ -1,6 +1,9 @@
 {
   "name": "doc-agent",
   "version": "0.1.0",
+  "description": "Gravador de procedimentos no navegador: registra passos e prints para o Claude Code escrever a documentação.",
+  "license": "MIT",
+  "author": "Samuel Alves",
   "private": true,
   "type": "module",
   "engines": {

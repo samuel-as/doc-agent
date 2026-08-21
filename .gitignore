@@ -1,6 +1,32 @@
+# Dependências do gravador (o usuário final não instala nada)
 node_modules/
+
+# Runtime do Node baixado pelo bootstrap na primeira execução
+runtime/
+
+# Artefatos locais de cada gravação: podem conter telas de sistemas internos
 sessions/
 browser-profile/
-runtime/
+
+# Documentação gerada fica só na máquina de quem gravou.
+# Exceção: as specs e planos do próprio projeto, em docs/superpowers/.
 docs/*
 !docs/superpowers/
+
+# HTML temporário da exportação em PDF (removido no finally; sobra se o processo morrer)
+.doc-agent-print.html
+
+# Configuração local do Claude Code (permissões por máquina)
+.claude/settings.local.json
+
+# Estado local do fluxo Superpowers
+.superpowers/
+
+# Logs e lixo de SO/editor
+*.log
+npm-debug.log*
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/
