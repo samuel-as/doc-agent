@@ -4,6 +4,11 @@
   "description": "Browser procedure recorder: captures steps and screenshots for Claude Code to write the documentation.",
   "license": "MIT",
   "author": "Samuel Alves",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samuel-as/doc-agent.git",
+    "directory": "tools/recorder"
+  },
   "private": true,
   "type": "module",
   "engines": {
