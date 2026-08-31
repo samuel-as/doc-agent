@@ -4,19 +4,42 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-$NodeVersion = 'v24.19.0'
+$NodeVersion = 'v24.19.0'   # version downloaded when no usable Node exists
+$MinNodeMajor = 22          # dist/doc-agent.mjs targets node22; anything >= this works
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..')).Path
 $RuntimeDir = Join-Path $RepoRoot 'runtime'
 $NodeExe = Join-Path $RuntimeDir 'node.exe'
 
+function Get-NodeMajor([string]$exe) {
+  try {
+    $v = (& $exe --version).Trim()
+    if ($v -match '^v(\d+)\.') { return [int]$Matches[1] }
+  } catch {}
+  return 0
+}
+
 if (Test-Path $NodeExe) {
-  $current = (& $NodeExe --version).Trim()
-  if ($current -eq $NodeVersion) {
-    Write-Output "runtime ok ($current)"
+  $major = Get-NodeMajor $NodeExe
+  if ($major -ge $MinNodeMajor) {
+    Write-Output "runtime ok ($((& $NodeExe --version).Trim()))"
     exit 0
   }
-  Write-Output "runtime out of date ($current -> $NodeVersion); reinstalling..."
+  Write-Output "runtime unusable (needs v$MinNodeMajor+); reinstalling..."
   Remove-Item -Recurse -Force $RuntimeDir
+}
+
+# Prefer a Node already installed on the machine: copy its node.exe into runtime\
+# (node.exe is self-contained) so every other command keeps using runtime\node.exe.
+$systemNode = Get-Command node.exe -ErrorAction SilentlyContinue
+if ($systemNode) {
+  $major = Get-NodeMajor $systemNode.Source
+  if ($major -ge $MinNodeMajor) {
+    New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
+    Copy-Item $systemNode.Source $NodeExe
+    Write-Output "runtime ready ($((& $NodeExe --version).Trim()), reused from $($systemNode.Source))"
+    exit 0
+  }
+  Write-Output "system Node found but too old (v$major < v$MinNodeMajor); downloading the portable one..."
 }
 
 $zipBase = "node-$NodeVersion-win-x64"
