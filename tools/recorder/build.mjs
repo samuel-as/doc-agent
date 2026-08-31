@@ -23,7 +23,9 @@ function thirdPartyNotices() {
       `- Source: ${source}`,
       '',
       '```',
-      fs.readFileSync(path.join(dir, licenseName), 'utf8').trim(),
+      // Some packages ship their LICENSE with CRLF (playwright-core does);
+      // normalize so the generated file is byte-identical on every platform.
+      fs.readFileSync(path.join(dir, licenseName), 'utf8').replace(/\r\n/g, '\n').trim(),
       '```',
     ].join('\n');
   });
