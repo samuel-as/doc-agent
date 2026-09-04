@@ -8,9 +8,9 @@ below are everything you need.
 | Path | What it is |
 |---|---|
 | `tools/recorder/` | recorder source, tests and build — the only place you run npm |
-| `dist/doc-agent.mjs` | committed bundle, **generated** — never edit by hand |
-| `THIRD-PARTY-NOTICES.md` | **generated** by the build — never edit by hand |
-| `.claude/skills/` | the two Claude Code skills (markdown + `bootstrap.ps1`) |
+| `.claude/skills/document/` | the skill: SKILL.md, `references/write-doc.md`, `scripts/bootstrap.ps1`, LICENSE.txt |
+| `.claude/skills/document/scripts/doc-agent.mjs` | committed bundle, **generated** — never edit by hand |
+| `.claude/skills/document/THIRD-PARTY-NOTICES.md` | **generated** by the build — never edit by hand |
 
 ## Setup
 
@@ -24,10 +24,11 @@ The unit tests run with `node --test` and need no browser.
 
 ## The golden rule: the bundle travels with the source
 
-`dist/doc-agent.mjs` is committed on purpose — it is what makes clone-and-use work
-without `npm install`. If you touch `tools/recorder/src/`, run `npm run build` and
-commit `dist/doc-agent.mjs` and `THIRD-PARTY-NOTICES.md` **in the same commit**.
-CI rejects any change where they drift from the source.
+The bundle at `.claude/skills/document/scripts/doc-agent.mjs` is committed on purpose —
+it is what makes both `npx skills add` and clone-and-use work without `npm install`. If
+you touch `tools/recorder/src/`, run `npm run build` and commit the bundle and
+`THIRD-PARTY-NOTICES.md` **in the same commit**. CI rejects any change where they drift
+from the source.
 
 ## Before opening a PR
 
