@@ -4,17 +4,28 @@ import path from 'node:path';
 import { consolidate } from './consolidate.js';
 import { drawMarker } from './marker.js';
 
+// Local-time stamp YYYY-MM-DD-HHMM: each recording gets its own folder, so earlier
+// takes of the same procedure are preserved.
+function stamp(now) {
+  const p = (n, w = 2) => String(n).padStart(w, '0');
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}`;
+}
+
 export class SessionWriter {
-  constructor(rootDir, name, now = new Date()) {
-    const date = now.toISOString().slice(0, 10);
+  // procedureDir is docs/<slug> in the user's project; this recording lands in
+  // sessions/<YYYY-MM-DD-HHMM>/ under it (session.json + shots/).
+  constructor(procedureDir, name, now = new Date()) {
     this.name = name;
-    this.dir = path.join(rootDir, 'sessions', `${date}-${name}`);
+    this.dir = path.join(procedureDir, 'sessions', stamp(now));
     this.shotsDir = path.join(this.dir, 'shots');
     this.events = [];
     this.rawCount = 0;
   }
 
   async init() {
+    // Re-recording within the same minute reuses the folder: start it clean so
+    // screenshots from the previous take can't survive into the new session.
+    await fs.rm(this.dir, { recursive: true, force: true });
     await fs.mkdir(this.shotsDir, { recursive: true });
   }
 

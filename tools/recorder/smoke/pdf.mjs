@@ -11,15 +11,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
 
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-pdfsmoke-'));
-await fs.mkdir(path.join(dir, 'img'), { recursive: true });
+await fs.mkdir(path.join(dir, 'screenshots'), { recursive: true });
 const png = new PNG({ width: 300, height: 120 });
 png.data.fill(210);
-await fs.writeFile(path.join(dir, 'img', 'step-01.png'), PNG.sync.write(png));
+await fs.writeFile(path.join(dir, 'screenshots', 'step-01.png'), PNG.sync.write(png));
 await fs.writeFile(path.join(dir, 'README.md'),
-  '# PDF test doc\n\n> **Goal:** validate the export.\n\n### 1. Click **Save**\n![Step 1](img/step-01.png)\n');
+  '# PDF test doc\n\n> **Goal:** validate the export.\n\n### 1. Click **Save**\n![Step 1](screenshots/step-01.png)\n');
 
 const r = spawnSync(process.execPath,
-  [path.join(repoRoot, 'dist', 'doc-agent.mjs'), 'pdf', path.join(dir, 'README.md')],
+  [path.join(repoRoot, '.claude', 'skills', 'document', 'scripts', 'doc-agent.mjs'), 'pdf', path.join(dir, 'README.md')],
   { encoding: 'utf8' });
 if (r.status !== 0) {
   console.error('PDF SMOKE FAILED (exit ' + r.status + '):\n' + r.stdout + r.stderr);

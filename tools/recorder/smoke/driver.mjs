@@ -1,5 +1,5 @@
 // tools/recorder/smoke/driver.mjs
-// Smoke test of the BUNDLE against a real Chrome: starts dist/doc-agent.mjs in the
+// Smoke test of the BUNDLE against a real Chrome: starts the committed bundle in the
 // background, drives the browser through a 2nd CDP client (trusted events), ends by
 // closing the browser (Browser.close over CDP) and validates the recorded session.
 // Usage: node smoke/driver.mjs            -> password-free fixture (full pipeline)
@@ -20,12 +20,18 @@ const failures = [];
 const check = (ok, msg) => { if (!ok) failures.push(msg); };
 const fileUrl = (p) => 'file:///' + p.replaceAll('\\', '/');
 
-const today = new Date().toISOString().slice(0, 10);
-const sessionDir = path.join(repoRoot, 'sessions', `${today}-${name}`);
-await fs.rm(sessionDir, { recursive: true, force: true });
+const bundle = path.join(repoRoot, '.claude', 'skills', 'document', 'scripts', 'doc-agent.mjs');
+const procDir = path.join(repoRoot, 'docs', name);
+await fs.rm(procDir, { recursive: true, force: true });
 
-const cli = spawn(process.execPath, [path.join(repoRoot, 'dist', 'doc-agent.mjs'), 'record', name], {
+// Point the data home (runtime cache, browser profile) at a temp dir so the smoke
+// never touches the developer's real %LOCALAPPDATA%\doc-agent.
+const os = await import('node:os');
+const smokeHome = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-smokehome-'));
+
+const cli = spawn(process.execPath, [bundle, 'record', name], {
   cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'],
+  env: { ...process.env, DOC_AGENT_HOME: smokeHome },
 });
 let cliOut = '';
 cli.stdout.on('data', (d) => (cliOut += d));
@@ -71,6 +77,12 @@ await cdp.send('Browser.close').catch(() => {});
 
 const exitCode = await cliExit;
 check(exitCode === 0, `the CLI exited with ${exitCode}; output:\n${cliOut}`);
+await fs.rm(smokeHome, { recursive: true, force: true }).catch(() => {});
+
+// The session folder is timestamped (sessions/YYYY-MM-DD-HHMM); take it from the CLI output.
+const readyMatch = cliOut.match(/Session ready: (\S+)/);
+if (!readyMatch) { console.error('CLI output has no "Session ready" line:\n' + cliOut); process.exit(1); }
+const sessionDir = path.join(repoRoot, readyMatch[1].replaceAll('/', path.sep));
 
 const raw = await fs.readFile(path.join(sessionDir, 'session.json'), 'utf8');
 const session = JSON.parse(raw);

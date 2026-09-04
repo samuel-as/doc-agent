@@ -1,12 +1,9 @@
----
-name: generate-doc
-description: Generates step-by-step documentation in markdown from a session recorded by doc-agent (folder sessions/YYYY-MM-DD-name). Use when the user asks to generate the documentation of a recording or invokes /generate-doc <session-folder>.
----
-
 # Generate documentation from a recorded session
 
-You are given the path to a session folder (e.g. `sessions/2026-08-19-vpn-ticket-request`).
-The procedure slug is the folder name WITHOUT the date prefix (e.g. `vpn-ticket-request`).
+You are given a procedure slug (e.g. `vpn-ticket-request`). Its recordings live in
+`docs/<slug>/sessions/<YYYY-MM-DD-HHMM>/` in the current project — when more than one
+exists, use the most recent (highest folder name) unless the user asked for a specific
+one. An absolute path to a session folder is also acceptable as input.
 
 ## Language of the output
 
@@ -39,7 +36,7 @@ field names are always quoted exactly as they appear on screen, never translated
 
 4. **Write the documentation** to `docs/<slug>/README.md`, following exactly this template:
 
-   # <Procedure title — inferred from the session name and the screens>
+   # <Procedure title — inferred from the procedure name and the screens>
 
    > **Goal:** <what this procedure accomplishes and when to use it>
    > **Prerequisites:** <required access/systems, inferred from the URLs and login screens>
@@ -48,23 +45,26 @@ field names are always quoted exactly as they appear on screen, never translated
 
    ### 1. <Imperative instruction for the step>
    <Detail of the action. If there is a screenshot: the sentence refers to what the reader will see.>
-   ![Step 1](img/step-01.png)
+   ![Step 1](screenshots/step-01.png)
 
    ### 2. ...
 
-5. **Copy the referenced screenshots** from `<session>/shots/` to `docs/<slug>/img/`, renaming
-   them to `step-NN.png` in the order of the final steps. Do NOT copy screenshots the
-   documentation does not reference.
+5. **Copy the referenced screenshots** from `<session>/shots/` to
+   `docs/<slug>/screenshots/`, renaming them to `step-NN.png` in the order of the final
+   steps. Do NOT copy screenshots the documentation does not reference. Remove
+   screenshots left over from a previous generation so the folder matches the README.
 
 6. **Offer the PDF.** Ask whether the user also wants the PDF version (or just generate it, if
    the original request already mentioned a PDF). If yes:
-   - If `runtime/node.exe` does not exist, run first:
-     `powershell -ExecutionPolicy Bypass -File .claude/skills/document/scripts/bootstrap.ps1`
-   - Run: `runtime/node.exe dist/doc-agent.mjs pdf docs/<slug>/README.md`
+   - If the runtime is not prepared yet, run first:
+     `powershell -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/scripts/bootstrap.ps1"`
+     and take the literal `node.exe` path from its output.
+   - Run: `"C:/...literal path.../node.exe" "${CLAUDE_SKILL_DIR}/scripts/doc-agent.mjs" pdf docs/<slug>/README.md`
    - Hand `docs/<slug>/<slug>.pdf` to the user.
 
-7. **Closing note** (in your reply, one line, no drama — the documentation is internal to the
-   team): remind them to review the screenshots before sharing the material outside the team.
+7. **Closing note** (in your reply, one line, no drama): remind the user to review the
+   screenshots before sharing the material more widely — the recording captures whatever
+   was on screen.
 
 ## Style rules (mandatory)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // doc-agent — bundle produced by tools/recorder/build.mjs (esbuild, NOT minified).
 // The canonical source lives in tools/recorder/src/. This file exists so the tool
-// runs without npm install: runtime\node.exe dist\doc-agent.mjs <command>
+// runs without npm install, on the runtime prepared by scripts/bootstrap.ps1.
 import { createRequire as __createRequire } from 'node:module';
 import { fileURLToPath as __fileURLToPath } from 'node:url';
 import __path from 'node:path';
@@ -278,7 +278,7 @@ var require_utilsBundle = __commonJS2({
     var require_supports_colors = __commonJS3({
       "node_modules/colors/lib/system/supports-colors.js"(exports22, module22) {
         "use strict";
-        var os2 = __require("os");
+        var os22 = __require("os");
         var hasFlag = require_has_flag();
         var env = process.env;
         var forceColor = void 0;
@@ -316,7 +316,7 @@ var require_utilsBundle = __commonJS2({
           }
           var min = forceColor ? 1 : 0;
           if (process.platform === "win32") {
-            var osRelease2 = os2.release().split(".");
+            var osRelease2 = os22.release().split(".");
             if (Number(process.versions.node.split(".")[0]) >= 8 && Number(osRelease2[0]) >= 10 && Number(osRelease2[2]) >= 10586) {
               return Number(osRelease2[2]) >= 14931 ? 3 : 2;
             }
@@ -1308,7 +1308,7 @@ var require_utilsBundle = __commonJS2({
     var require_supports_color = __commonJS3({
       "node_modules/supports-color/index.js"(exports22, module22) {
         "use strict";
-        var os2 = __require("os");
+        var os22 = __require("os");
         var tty = __require("tty");
         var hasFlag = require_has_flag2();
         var { env } = process;
@@ -1356,7 +1356,7 @@ var require_utilsBundle = __commonJS2({
             return min;
           }
           if (process.platform === "win32") {
-            const osRelease2 = os2.release().split(".");
+            const osRelease2 = os22.release().split(".");
             if (Number(osRelease2[0]) >= 10 && Number(osRelease2[2]) >= 10586) {
               return Number(osRelease2[2]) >= 14931 ? 3 : 2;
             }
@@ -1800,7 +1800,7 @@ var require_utilsBundle = __commonJS2({
       "node_modules/dotenv/lib/main.js"(exports22, module22) {
         var fs7 = __require("fs");
         var path42 = __require("path");
-        var os2 = __require("os");
+        var os22 = __require("os");
         var crypto4 = __require("crypto");
         var TIPS = [
           "\u25C8 encrypted .env [www.dotenvx.com]",
@@ -1946,7 +1946,7 @@ var require_utilsBundle = __commonJS2({
           return null;
         }
         function _resolveHome(envPath) {
-          return envPath[0] === "~" ? path42.join(os2.homedir(), envPath.slice(1)) : envPath;
+          return envPath[0] === "~" ? path42.join(os22.homedir(), envPath.slice(1)) : envPath;
         }
         function _configVault(options22) {
           const debug52 = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options22 && options22.debug);
@@ -34458,7 +34458,7 @@ ${end.comment}` : end.comment;
         "use strict";
         var { sep: sep2 } = __require("path");
         var { platform: platform2 } = process;
-        var os2 = __require("os");
+        var os22 = __require("os");
         exports22.EV_ALL = "all";
         exports22.EV_READY = "ready";
         exports22.EV_ADD = "add";
@@ -34512,7 +34512,7 @@ ${end.comment}` : end.comment;
         exports22.isWindows = platform2 === "win32";
         exports22.isMacos = platform2 === "darwin";
         exports22.isLinux = platform2 === "linux";
-        exports22.isIBMi = os2.type() === "OS400";
+        exports22.isIBMi = os22.type() === "OS400";
       }
     });
     var require_nodefs_handler = __commonJS3({
@@ -56706,11 +56706,11 @@ ${end.comment}` : end.comment;
       return (f) => f.length === len && f !== "." && f !== "..";
     };
     var defaultPlatform = typeof process === "object" && process ? typeof process.env === "object" && process.env && process.env.__MINIMATCH_TESTING_PLATFORM__ || process.platform : "posix";
-    var path5 = {
+    var path6 = {
       win32: { sep: "\\" },
       posix: { sep: "/" }
     };
-    var sep = defaultPlatform === "win32" ? path5.win32.sep : path5.posix.sep;
+    var sep = defaultPlatform === "win32" ? path6.win32.sep : path6.posix.sep;
     minimatch.sep = sep;
     var GLOBSTAR = /* @__PURE__ */ Symbol("globstar **");
     minimatch.GLOBSTAR = GLOBSTAR;
@@ -57456,7 +57456,7 @@ ${end.comment}` : end.comment;
     minimatch.escape = escape23;
     minimatch.unescape = unescape2;
     var import_node_process7 = __toESM3(__require("node:process"), 1);
-    var import_node_path5 = __toESM3(__require("node:path"), 1);
+    var import_node_path6 = __toESM3(__require("node:path"), 1);
     var import_node_url = __require("node:url");
     var import_node_child_process7 = __toESM3(__require("node:child_process"), 1);
     var import_promises22 = __toESM3(__require("node:fs/promises"), 1);
@@ -57464,7 +57464,7 @@ ${end.comment}` : end.comment;
     var import_node_child_process2 = __toESM3(__require("node:child_process"), 1);
     var import_promises3 = __toESM3(__require("node:fs/promises"), 1);
     var import_node_process = __toESM3(__require("node:process"), 1);
-    var import_node_os2 = __toESM3(__require("node:os"), 1);
+    var import_node_os3 = __toESM3(__require("node:os"), 1);
     var import_node_fs3 = __toESM3(__require("node:fs"), 1);
     var import_node_fs2 = __toESM3(__require("node:fs"), 1);
     var import_node_fs4 = __toESM3(__require("node:fs"), 1);
@@ -57509,7 +57509,7 @@ ${end.comment}` : end.comment;
       if (import_node_process.default.platform !== "linux") {
         return false;
       }
-      if (import_node_os2.default.release().toLowerCase().includes("microsoft")) {
+      if (import_node_os3.default.release().toLowerCase().includes("microsoft")) {
         if (isInsideContainer()) {
           return false;
         }
@@ -57757,8 +57757,8 @@ tell application "System Events" to get value of property list item "CFBundleNam
     var is_in_ssh_default = isInSsh;
     var import_meta = {};
     var fallbackAttemptSymbol = /* @__PURE__ */ Symbol("fallbackAttempt");
-    var __dirname2 = import_meta.url ? import_node_path5.default.dirname((0, import_node_url.fileURLToPath)(import_meta.url)) : "";
-    var localXdgOpenPath = import_node_path5.default.join(__dirname2, "xdg-open");
+    var __dirname2 = import_meta.url ? import_node_path6.default.dirname((0, import_node_url.fileURLToPath)(import_meta.url)) : "";
+    var localXdgOpenPath = import_node_path6.default.join(__dirname2, "xdg-open");
     var { platform, arch } = import_node_process7.default;
     var tryEachApp = async (apps2, opener) => {
       if (apps2.length === 0) {
@@ -166763,21 +166763,27 @@ __export2(session_exports, {
 });
 import fs2 from "node:fs/promises";
 import path2 from "node:path";
+function stamp(now) {
+  const p = (n, w = 2) => String(n).padStart(w, "0");
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}`;
+}
 var SessionWriter;
 var init_session2 = __esm2({
   "src/recorder/session.js"() {
     init_consolidate();
     init_marker();
     SessionWriter = class {
-      constructor(rootDir, name, now = /* @__PURE__ */ new Date()) {
-        const date = now.toISOString().slice(0, 10);
+      // procedureDir is docs/<slug> in the user's project; this recording lands in
+      // sessions/<YYYY-MM-DD-HHMM>/ under it (session.json + shots/).
+      constructor(procedureDir2, name, now = /* @__PURE__ */ new Date()) {
         this.name = name;
-        this.dir = path2.join(rootDir, "sessions", `${date}-${name}`);
+        this.dir = path2.join(procedureDir2, "sessions", stamp(now));
         this.shotsDir = path2.join(this.dir, "shots");
         this.events = [];
         this.rawCount = 0;
       }
       async init() {
+        await fs2.rm(this.dir, { recursive: true, force: true });
         await fs2.mkdir(this.shotsDir, { recursive: true });
       }
       async addEvent(ev, screenshotBuffer = null) {
@@ -167069,6 +167075,35 @@ var init_recorder2 = __esm2({
         }
       }
     };
+  }
+});
+
+// src/paths.js
+var paths_exports = {};
+__export2(paths_exports, {
+  browserProfileDir: () => browserProfileDir,
+  dataHome: () => dataHome,
+  procedureDir: () => procedureDir,
+  runtimeDir: () => runtimeDir
+});
+import os from "node:os";
+import path3 from "node:path";
+function dataHome(env = process.env) {
+  if (env.DOC_AGENT_HOME) return env.DOC_AGENT_HOME;
+  const localAppData = env.LOCALAPPDATA ?? path3.join(os.homedir(), "AppData", "Local");
+  return path3.join(localAppData, "doc-agent");
+}
+function browserProfileDir(env = process.env) {
+  return path3.join(dataHome(env), "browser-profile");
+}
+function runtimeDir(env = process.env) {
+  return path3.join(dataHome(env), "runtime");
+}
+function procedureDir(cwd, slug) {
+  return path3.join(cwd, "docs", slug);
+}
+var init_paths = __esm2({
+  "src/paths.js"() {
   }
 });
 
@@ -169220,19 +169255,19 @@ __export2(pdf_exports, {
   renderHtml: () => renderHtml
 });
 import fs3 from "node:fs/promises";
-import os from "node:os";
-import path3 from "node:path";
+import os2 from "node:os";
+import path4 from "node:path";
 function renderHtml(markdown) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>${marked.parse(markdown)}</body></html>`;
 }
 async function exportPdf(readmePath) {
-  const mdAbs = path3.resolve(readmePath);
-  const dir = path3.dirname(mdAbs);
+  const mdAbs = path4.resolve(readmePath);
+  const dir = path4.dirname(mdAbs);
   const markdown = await fs3.readFile(mdAbs, "utf8");
-  const htmlPath = path3.join(dir, ".doc-agent-print.html");
-  const slug = path3.basename(dir);
-  const pdfPath = path3.join(dir, `${slug}.pdf`);
-  const profileDir2 = await fs3.mkdtemp(path3.join(os.tmpdir(), "doc-agent-pdf-"));
+  const htmlPath = path4.join(dir, ".doc-agent-print.html");
+  const slug = path4.basename(dir);
+  const pdfPath = path4.join(dir, `${slug}.pdf`);
+  const profileDir2 = await fs3.mkdtemp(path4.join(os2.tmpdir(), "doc-agent-pdf-"));
   await fs3.writeFile(htmlPath, renderHtml(markdown));
   let proc = null;
   try {
@@ -169279,7 +169314,7 @@ var init_pdf2 = __esm2({
 });
 
 // src/cli.js
-import path4 from "node:path";
+import path5 from "node:path";
 function slugify(s) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
@@ -169288,11 +169323,13 @@ if (command === "record" && arg) {
   const { launchBrowser: launchBrowser2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
   const { SessionWriter: SessionWriter2 } = await Promise.resolve().then(() => (init_session2(), session_exports));
   const { Recorder: Recorder3 } = await Promise.resolve().then(() => (init_recorder2(), recorder_exports));
+  const { browserProfileDir: browserProfileDir2, procedureDir: procedureDir2 } = await Promise.resolve().then(() => (init_paths(), paths_exports));
   const root = process.cwd();
-  const session2 = new SessionWriter2(root, slugify(arg));
+  const slug = slugify(arg);
+  const session2 = new SessionWriter2(procedureDir2(root, slug), slug);
   await session2.init();
   console.log("Opening the recording browser (dedicated profile)...");
-  const { browser, proc } = await launchBrowser2({ profileDir: path4.join(root, "browser-profile") });
+  const { browser, proc } = await launchBrowser2({ profileDir: browserProfileDir2() });
   const context2 = browser.contexts()[0];
   const recorder = new Recorder3(context2, session2);
   await recorder.start();
@@ -169308,9 +169345,9 @@ if (command === "record" && arg) {
     let ok = true;
     try {
       const dir = await session2.finalize();
-      const rel = path4.relative(root, dir).replaceAll("\\", "/");
+      const rel = path5.relative(root, dir).replaceAll("\\", "/");
       console.log(`Session ready: ${rel}`);
-      console.log(`Generate the documentation with: /generate-doc ${rel}`);
+      console.log(`Generate the documentation with: /document ${slug}`);
     } catch (e) {
       console.error(`Failed to consolidate: ${e.message}`);
       ok = false;
@@ -169327,7 +169364,7 @@ if (command === "record" && arg) {
   const { exportPdf: exportPdf2 } = await Promise.resolve().then(() => (init_pdf2(), pdf_exports));
   try {
     const out = await exportPdf2(arg);
-    console.log(`PDF generated: ${path4.relative(process.cwd(), out).replaceAll("\\", "/")}`);
+    console.log(`PDF generated: ${path5.relative(process.cwd(), out).replaceAll("\\", "/")}`);
     process.exit(0);
   } catch (e) {
     console.error(`Failed to generate the PDF: ${e.message}`);
