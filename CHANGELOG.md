@@ -6,6 +6,8 @@ versions follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-09-04
+
 ### Changed
 
 - Bundled `marked` updated from 15.x to 18.x (markdown → PDF rendering).
