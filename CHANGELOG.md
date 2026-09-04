@@ -11,6 +11,12 @@ versions follow [SemVer](https://semver.org).
 The repository now works both cloned and installed as a skill
 (`npx skills add samuel-as/doc-agent`) from any project.
 
+### Added
+
+- `SECURITY.md` with GitHub private vulnerability reporting as the disclosure
+  channel, and Dependabot configuration for weekly npm and GitHub Actions
+  update PRs.
+
 ### Changed
 
 - Single self-contained `/document` skill replaces the `document` + `generate-doc`
