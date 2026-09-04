@@ -1,14 +1,8 @@
-# Recorder dependencies (end users install nothing)
+# Recorder dev dependencies (end users install nothing)
 node_modules/
 
-# Node runtime downloaded by the bootstrap on first run
-runtime/
-
-# Local artifacts of each recording: they may contain internal screens
-sessions/
-browser-profile/
-
-# Generated documentation stays on the machine that recorded it.
+# Recordings and docs generated when running /document inside THIS repo (dogfooding).
+# In users' projects the same docs/<slug> layout is created and versioning it is their call.
 # Exception: this project's own specs and plans, under docs/superpowers/.
 docs/*
 !docs/superpowers/

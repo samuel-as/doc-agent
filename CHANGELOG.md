@@ -6,6 +6,31 @@ versions follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-04
+
+The repository now works both cloned and installed as a skill
+(`npx skills add samuel-as/doc-agent`) from any project.
+
+### Changed
+
+- Single self-contained `/document` skill replaces the `document` + `generate-doc`
+  pair. `/document <new-name>` records and generates; `/document <existing-slug>`
+  regenerates; `/document` with no argument asks which mode, listing existing
+  recordings. The recorder bundle moved from `dist/` into the skill
+  (`.claude/skills/document/scripts/doc-agent.mjs`).
+- Machine-level data moved out of the repository into `%LOCALAPPDATA%\doc-agent`
+  (override with the `DOC_AGENT_HOME` environment variable): the portable Node
+  runtime (downloaded once per machine, not per project) and the recording
+  browser profile.
+- Everything produced for a procedure now lives in `docs/<slug>/` in the project
+  where `/document` runs: `README.md`, `screenshots/` (was `img/`), the optional
+  PDF, and one `sessions/<YYYY-MM-DD-HHMM>/` folder per recording (earlier takes
+  are preserved). doc-agent does not touch the host project's `.gitignore` —
+  versioning the output is the user's decision.
+- The skill folder is now legally self-contained: it carries `LICENSE.txt` and
+  the generated `THIRD-PARTY-NOTICES.md` (moved from the repo root), so the
+  bundled third-party licenses travel with the bundle on `npx skills add`.
+
 ## [0.1.0] — 2026-08-31
 
 First public release.

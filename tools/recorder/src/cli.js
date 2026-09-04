@@ -15,13 +15,15 @@ if (command === 'record' && arg) {
   const { launchBrowser } = await import('./recorder/launch.js');
   const { SessionWriter } = await import('./recorder/session.js');
   const { Recorder } = await import('./recorder/recorder.js');
+  const { browserProfileDir, procedureDir } = await import('./paths.js');
 
   const root = process.cwd();
-  const session = new SessionWriter(root, slugify(arg));
+  const slug = slugify(arg);
+  const session = new SessionWriter(procedureDir(root, slug), slug);
   await session.init();
 
   console.log('Opening the recording browser (dedicated profile)...');
-  const { browser, proc } = await launchBrowser({ profileDir: path.join(root, 'browser-profile') });
+  const { browser, proc } = await launchBrowser({ profileDir: browserProfileDir() });
   const context = browser.contexts()[0];
   const recorder = new Recorder(context, session);
   await recorder.start();
@@ -41,7 +43,7 @@ if (command === 'record' && arg) {
       const dir = await session.finalize();
       const rel = path.relative(root, dir).replaceAll('\\', '/');
       console.log(`Session ready: ${rel}`);
-      console.log(`Generate the documentation with: /generate-doc ${rel}`);
+      console.log(`Generate the documentation with: /document ${slug}`);
     } catch (e) {
       console.error(`Failed to consolidate: ${e.message}`);
       ok = false;

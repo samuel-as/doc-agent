@@ -1,13 +1,14 @@
-# .claude/skills/document/scripts/bootstrap.ps1
-# Ensures the official portable Node at <repo>\runtime\node.exe (pinned version).
-# Idempotent: does nothing when the correct runtime is present. No admin, no PATH, no registry.
+# bootstrap.ps1 — ensures the official portable Node in the doc-agent data home
+# (%LOCALAPPDATA%\doc-agent\runtime, overridable via DOC_AGENT_HOME). Shared by every
+# project on the machine. Idempotent: does nothing when a usable runtime is present.
+# No admin, no PATH changes, no registry.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 $NodeVersion = 'v24.19.0'   # version downloaded when no usable Node exists
-$MinNodeMajor = 22          # dist/doc-agent.mjs targets node22; anything >= this works
-$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..')).Path
-$RuntimeDir = Join-Path $RepoRoot 'runtime'
+$MinNodeMajor = 22          # the bundle targets node22; anything >= this works
+$DataHome = if ($env:DOC_AGENT_HOME) { $env:DOC_AGENT_HOME } else { Join-Path $env:LOCALAPPDATA 'doc-agent' }
+$RuntimeDir = Join-Path $DataHome 'runtime'
 $NodeExe = Join-Path $RuntimeDir 'node.exe'
 
 function Get-NodeMajor([string]$exe) {
@@ -21,7 +22,7 @@ function Get-NodeMajor([string]$exe) {
 if (Test-Path $NodeExe) {
   $major = Get-NodeMajor $NodeExe
   if ($major -ge $MinNodeMajor) {
-    Write-Output "runtime ok ($((& $NodeExe --version).Trim()))"
+    Write-Output "runtime ok ($((& $NodeExe --version).Trim())) at $NodeExe"
     exit 0
   }
   Write-Output "runtime unusable (needs v$MinNodeMajor+); reinstalling..."
@@ -86,4 +87,4 @@ if ($installed -ne $NodeVersion) {
   Write-Output "ERROR: installed version ($installed) differs from the pinned one ($NodeVersion)"
   exit 1
 }
-Write-Output "runtime ready ($installed)"
+Write-Output "runtime ready ($installed) at $NodeExe"

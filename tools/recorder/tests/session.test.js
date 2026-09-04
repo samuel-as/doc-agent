@@ -21,9 +21,13 @@ function ev(kind, overrides = {}) {
   };
 }
 
+// local-time components so the expected stamp is timezone-independent
+const NOW = new Date(2026, 7, 19, 14, 30); // 2026-08-19 14:30 local
+
 test('writes a full session: session.json, numbered final screenshots, raws removed', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
-  const session = new SessionWriter(root, 'test-vpn', new Date('2026-08-19T12:00:00Z'));
+  const procedureDir = path.join(root, 'docs', 'test-vpn');
+  const session = new SessionWriter(procedureDir, 'test-vpn', NOW);
   await session.init();
 
   await session.addEvent(ev('click', { label: 'New', selector: '#new', coords: { x: 25, y: 25 } }), await tinyPng());
@@ -31,7 +35,8 @@ test('writes a full session: session.json, numbered final screenshots, raws remo
   await session.addEvent(ev('field-commit', { selector: '#reason', label: 'Reason', value: 'VPN is down', ts: 3000 }), null);
 
   const dir = await session.finalize();
-  assert.equal(path.basename(dir), '2026-08-19-test-vpn');
+  // each recording lands in its own timestamped folder under sessions/
+  assert.equal(dir, path.join(procedureDir, 'sessions', '2026-08-19-1430'));
 
   const json = JSON.parse(await fs.readFile(path.join(dir, 'session.json'), 'utf8'));
   assert.equal(json.name, 'test-vpn');
@@ -46,9 +51,27 @@ test('writes a full session: session.json, numbered final screenshots, raws remo
   assert.deepEqual(shots.sort(), ['step-001.png', 'step-002.png']);
 });
 
+test('recordings at different times of the same procedure are both preserved', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
+  const procedureDir = path.join(root, 'docs', 'retake');
+
+  const first = new SessionWriter(procedureDir, 'retake', new Date(2026, 7, 19, 14, 30));
+  await first.init();
+  await first.addEvent(ev('click', { selector: '#a' }), null);
+  await first.finalize();
+
+  const second = new SessionWriter(procedureDir, 'retake', new Date(2026, 7, 19, 15, 5));
+  await second.init();
+  await second.addEvent(ev('click', { selector: '#b' }), null);
+  await second.finalize();
+
+  const sessions = (await fs.readdir(path.join(procedureDir, 'sessions'))).sort();
+  assert.deepEqual(sessions, ['2026-08-19-1430', '2026-08-19-1505']);
+});
+
 test('a step with no screenshot ends up with screenshot null in the json', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
-  const session = new SessionWriter(root, 'no-screenshot', new Date('2026-08-19T12:00:00Z'));
+  const session = new SessionWriter(path.join(root, 'docs', 'no-screenshot'), 'no-screenshot', NOW);
   await session.init();
   await session.addEvent(ev('click', { selector: '#a' }), null); // capture failed
   const dir = await session.finalize();

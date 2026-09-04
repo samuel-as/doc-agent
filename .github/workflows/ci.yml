@@ -17,7 +17,7 @@ jobs:
       run:
         working-directory: tools/recorder
     steps:
-      # dist/doc-agent.mjs is committed with LF; without this, Windows runners
+      # The committed bundle is stored with LF; without this, Windows runners
       # would check it out with CRLF and the sync check below would always fail.
       - name: Keep original line endings
         working-directory: ${{ github.workspace }}
@@ -38,14 +38,14 @@ jobs:
       - name: Rebuild bundle and notices
         run: npm run build
 
-      # The repo is clone-and-use: dist/ and THIRD-PARTY-NOTICES.md are committed
-      # on purpose. This gate guarantees they never drift from tools/recorder/src.
+      # The skill ships its bundle committed (clone-and-use / npx install). This gate
+      # guarantees the bundle and the notices never drift from tools/recorder/src.
       - name: Fail if build output differs from the commit
         working-directory: ${{ github.workspace }}
         shell: bash
         run: |
-          if [ -n "$(git status --porcelain dist/ THIRD-PARTY-NOTICES.md)" ]; then
-            git --no-pager diff dist/ THIRD-PARTY-NOTICES.md
-            echo "::error::dist/doc-agent.mjs or THIRD-PARTY-NOTICES.md is out of sync with tools/recorder/src. Run 'npm run build' in tools/recorder and commit the result."
+          if [ -n "$(git status --porcelain .claude/skills/document/scripts/doc-agent.mjs .claude/skills/document/THIRD-PARTY-NOTICES.md)" ]; then
+            git --no-pager diff .claude/skills/document/scripts/doc-agent.mjs .claude/skills/document/THIRD-PARTY-NOTICES.md
+            echo "::error::The committed bundle or THIRD-PARTY-NOTICES.md is out of sync with tools/recorder/src. Run 'npm run build' in tools/recorder and commit the result."
             exit 1
           fi
