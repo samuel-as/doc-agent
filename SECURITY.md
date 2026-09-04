@@ -8,7 +8,7 @@ Only the latest release on `main` receives security fixes.
 
 Please **do not open a public issue** for security problems. Use GitHub's private
 vulnerability reporting instead: go to the repository's **Security** tab and click
-**Report a vulnerability**. You will get a response within a few days.
+**Report a vulnerability**.
 
 Relevant context for researchers:
 
