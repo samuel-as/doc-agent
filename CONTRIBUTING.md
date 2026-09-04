@@ -3,6 +3,14 @@
 Thanks for your interest in improving doc-agent! This is a small project — the rules
 below are everything you need.
 
+## Branching model
+
+- **`dev`** is the development trunk — open every PR against it (features, fixes,
+  dependency bumps). The `[Unreleased]` section of the CHANGELOG grows here.
+- **`main`** always mirrors the latest release: it only receives release merges from
+  `dev`, each one tagged (`vX.Y.Z`). Users installing via `npx skills add` get `main`,
+  so they only ever receive released states.
+
 ## Where the code lives
 
 | Path | What it is |

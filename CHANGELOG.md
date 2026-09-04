@@ -6,6 +6,10 @@ versions follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Changed
+
+- Bundled `marked` updated from 15.x to 18.x (markdown → PDF rendering).
+
 ## [0.2.0] — 2026-09-04
 
 The repository now works both cloned and installed as a skill
