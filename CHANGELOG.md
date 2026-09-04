@@ -6,7 +6,7 @@ versions follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
-## [0.2.0] — 2026-08-31
+## [0.2.0] — 2026-09-04
 
 The repository now works both cloned and installed as a skill
 (`npx skills add samuel-as/doc-agent`) from any project.

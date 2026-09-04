@@ -3,7 +3,7 @@
 [![CI](https://github.com/samuel-as/doc-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/samuel-as/doc-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
-![Node.js 24 portable](https://img.shields.io/badge/Node.js-24.x%20portable-5FA04E?logo=nodedotjs&logoColor=white)
+![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B%20(portable%20fallback)-5FA04E?logo=nodedotjs&logoColor=white)
 ![Browser: Chrome or Edge](https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-4285F4?logo=googlechrome&logoColor=white)
 ![Built for Claude Code](https://img.shields.io/badge/Claude%20Code-skills-D97757)
 
@@ -80,15 +80,6 @@ regenerates the documentation from it instead of recording again — handy to re
 text or produce the PDF later. Run `/document` with no argument to pick from the existing
 recordings.
 
-### Use the CLI directly (without Claude Code)
-
-The bundle is self-contained; only the writing of the text depends on Claude.
-
-```bash
-"%LOCALAPPDATA%\doc-agent\runtime\node.exe" .claude/skills/document/scripts/doc-agent.mjs record vpn-ticket-request
-"%LOCALAPPDATA%\doc-agent\runtime\node.exe" .claude/skills/document/scripts/doc-agent.mjs pdf docs/vpn-ticket-request/README.md
-```
-
 ## What you get
 
 Everything for a procedure lives in one folder of the project where you ran `/document`:
@@ -143,7 +134,7 @@ shows up on a screen that is not a password screen, it will be in the image — 
     ├── bootstrap.ps1             ← prepares the portable runtime
     └── doc-agent.mjs             ← recorder bundle, versioned (this is what runs)
 tools/recorder/                   ← recorder source code, tests and smoke tests
-docs/superpowers/                 ← design specs and implementation plans (written in pt-BR)
+docs/superpowers/                 ← design specs and implementation plans
 ```
 
 The bundle is committed on purpose: it is what makes both `npx skills add` and
