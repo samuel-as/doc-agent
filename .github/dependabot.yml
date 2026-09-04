@@ -1,0 +1,14 @@
+# Dependabot: weekly dependency update PRs.
+# Note for maintainers: an npm bump alone leaves the committed bundle stale, so CI's
+# sync gate will fail on Dependabot PRs until you run `npm run build` in tools/recorder
+# and push the regenerated bundle + THIRD-PARTY-NOTICES.md to the PR branch.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /tools/recorder
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
