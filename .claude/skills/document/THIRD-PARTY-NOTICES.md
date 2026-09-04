@@ -219,7 +219,7 @@ Apache License
 
 ---
 
-## marked 15.0.12
+## marked 18.0.11
 
 - License: MIT
 - Source: https://github.com/markedjs/marked

@@ -25,7 +25,7 @@
     "smoke:pdf": "node smoke/pdf.mjs"
   },
   "dependencies": {
-    "marked": "^15.0.12",
+    "marked": "^18.0.11",
     "playwright-core": "^1.50.0",
     "pngjs": "^7.0.0"
   },
