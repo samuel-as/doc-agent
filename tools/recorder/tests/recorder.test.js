@@ -8,30 +8,39 @@ test('the injected script contains the binding, the listeners and the reinstall 
   const src = buildInitScript();
   assert.ok(src.includes(BINDING));
   assert.ok(src.includes('__docAgentInstalled')); // idempotent on re-injection
-  for (const evt of ['mousedown', 'focusin', 'focusout', 'keydown', 'change']) {
+  for (const evt of ['mousedown', 'focusin', 'focusout', 'keydown', 'change', 'dragstart', 'drop']) {
     assert.ok(src.includes(`'${evt}'`), `missing ${evt} listener`);
   }
-  assert.ok(src.includes('password'));
+  assert.ok(src.includes('composedPath'), 'shadow DOM: must resolve the real target via composedPath');
+  assert.ok(src.includes("cursor === 'pointer'"), 'pointer-cursor fallback for role-less clickables');
+  assert.ok(src.includes('__docAgentSensitiveRects'), 'page must expose sensitive rects for navigation shots');
+  assert.ok(!src.includes('pageHasPassword'), 'page-level suppression is gone');
 });
 
 test('labelFor does not fall back to el.value outside button/submit/reset inputs', () => {
   const src = buildInitScript();
-  // an unconditional fallback (which would leak a typed password as the label) must not exist
   assert.ok(!src.includes('el.innerText || el.value'), 'unconditional el.value fallback present');
-  // the guard restricting el.value to button-like inputs must exist
   assert.ok(src.includes("['button','submit','reset']"), 'button/submit/reset guard missing');
 });
 
-test('keydown Enter ignores TEXTAREA and contenteditable (a newline is not a submit)', () => {
+test('keydown: Enter ignores TEXTAREA/contenteditable; shortcuts skip copy/paste/select-all/undo', () => {
   const src = buildInitScript();
   const keydownIdx = src.indexOf("addEventListener('keydown'");
   assert.ok(keydownIdx >= 0, 'keydown listener missing');
-  const keydownBody = src.slice(keydownIdx);
-  // the guard must live inside the keydown handler (after the listener), not only in isEditable
-  assert.ok(
-    keydownBody.includes("tagName === 'TEXTAREA' || t.isContentEditable"),
-    'TEXTAREA/contenteditable guard missing from the keydown path'
-  );
+  const body = src.slice(keydownIdx);
+  assert.ok(body.includes("tagName === 'TEXTAREA' || t.isContentEditable"), 'TEXTAREA/contenteditable guard missing');
+  assert.ok(body.includes("['C','V','A','Z']"), 'copy/paste/select-all/undo exclusion missing');
+});
+
+test('the injected script embeds the sensitivity classifier and it runs in a bare scope', () => {
+  const src = buildInitScript();
+  assert.ok(src.includes('function sensitivityOf'), 'classifier not inlined');
+  // the inlined factory must be valid standalone JS (no references to module scope)
+  const start = src.indexOf('(function createSensitivity');
+  const end = src.indexOf(')();', start) + 1;
+  const factory = src.slice(start, end);
+  const fn = new Function('return ' + factory + '();')();
+  assert.equal(fn({ type: 'text', name: 'senha', value: '' }), 'password');
 });
 
 function fakes() {

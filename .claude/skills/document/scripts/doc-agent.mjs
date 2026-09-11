@@ -166906,17 +166906,145 @@ var init_session2 = __esm2({
   }
 });
 
+// src/recorder/sensitivity.js
+function createSensitivity() {
+  const splitCamel = (s) => String(s ?? "").replace(/([a-z])([A-Z])/g, "$1 $2");
+  const norm = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[_\-.\s]+/g, " ").trim();
+  const words = (list) => new RegExp("(^| )(" + list.join("|") + ")( |$)");
+  const PASSWORD = words(["senha", "password", "passwd", "pwd", "pass", "contrasena", "kennwort", "mot de passe"]);
+  const OTP = words([
+    "otp",
+    "otpcode",
+    "totp",
+    "mfa",
+    "2fa",
+    "twofa",
+    "twofactor",
+    "two factor",
+    "onetime",
+    "one time",
+    "verification code",
+    "codigo de verificacao",
+    "codigo verificacao",
+    "codigo de seguranca",
+    "codigo seguranca",
+    "token",
+    "pin"
+  ]);
+  const OTP_EXCLUDE = /promo|cupom|coupon|(^| )cep( |$)|postal|zip|bank|barcode/;
+  const OTP_TYPES = ["text", "number", "tel", "password"];
+  const CARD = words([
+    "cvv",
+    "cvc",
+    "csc",
+    "cvn",
+    "ccv",
+    "cid",
+    "card number",
+    "cardnumber",
+    "numero do cartao",
+    "numero cartao",
+    "tarjeta",
+    "carte"
+  ]);
+  const DOCUMENT = words([
+    "cpf",
+    "cnpj",
+    "cpf cnpj",
+    "cpfcnpj",
+    "documento",
+    "rg",
+    "passaporte",
+    "passport",
+    "nif",
+    "dni",
+    "ssn",
+    "tax id"
+  ]);
+  const PHONE = words(["telefone", "celular", "fone", "phone", "mobile", "telemovel", "telefono", "whatsapp"]);
+  const luhn = (d) => {
+    let sum = 0, dbl = false;
+    for (let i = d.length - 1; i >= 0; i--) {
+      let n = d.charCodeAt(i) - 48;
+      if (dbl) {
+        n *= 2;
+        if (n > 9) n -= 9;
+      }
+      sum += n;
+      dbl = !dbl;
+    }
+    return sum % 10 === 0;
+  };
+  const allSame = (d) => /^(\d)\1+$/.test(d);
+  const cpfValid = (d) => {
+    if (d.length !== 11 || allSame(d)) return false;
+    const dv = (len) => {
+      let s = 0;
+      for (let i = 0; i < len; i++) s += (d.charCodeAt(i) - 48) * (len + 1 - i);
+      const r = s * 10 % 11;
+      return r === 10 ? 0 : r;
+    };
+    return dv(9) === d.charCodeAt(9) - 48 && dv(10) === d.charCodeAt(10) - 48;
+  };
+  const cnpjValid = (d) => {
+    if (d.length !== 14 || allSame(d)) return false;
+    const dv = (len) => {
+      const w = len === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      let s = 0;
+      for (let i = 0; i < len; i++) s += (d.charCodeAt(i) - 48) * w[i];
+      const r = s % 11;
+      return r < 2 ? 0 : 11 - r;
+    };
+    return dv(12) === d.charCodeAt(12) - 48 && dv(13) === d.charCodeAt(13) - 48;
+  };
+  return function sensitivityOf2(field) {
+    const f2 = field || {};
+    const type3 = String(f2.type || "text").toLowerCase();
+    const ac = norm(f2.autocomplete);
+    const names = norm([f2.name, f2.id, f2.placeholder, f2.ariaLabel, f2.labelText].map(splitCamel).join(" "));
+    const value2 = String(f2.value ?? "");
+    const digits = value2.replace(/\D/g, "");
+    const numericLike = /^[\d\s.\-\/]+$/.test(value2.trim()) && digits.length > 0;
+    if (type3 === "password" || ac === "current password" || ac === "new password") return "password";
+    if (ac === "one time code") return "otp";
+    if (ac === "cc" || ac.indexOf("cc ") === 0) return "card";
+    if (ac === "tel" || ac === "tel national" || ac === "tel local") return "phone";
+    if (PASSWORD.test(names)) return "password";
+    if (OTP.test(names) && !OTP_EXCLUDE.test(names) && OTP_TYPES.indexOf(type3) >= 0) return "otp";
+    if (CARD.test(names) || /(^| )validade( |$)/.test(names) && /cartao/.test(names)) return "card";
+    if (DOCUMENT.test(names)) return "document";
+    if (PHONE.test(names) || type3 === "tel") return "phone";
+    if (numericLike && digits.length >= 13 && digits.length <= 19 && luhn(digits)) return "card";
+    if (numericLike && (cpfValid(digits) || cnpjValid(digits))) return "document";
+    return null;
+  };
+}
+var sensitivityOf;
+var init_sensitivity = __esm2({
+  "src/recorder/sensitivity.js"() {
+    sensitivityOf = createSensitivity();
+  }
+});
+
 // src/recorder/instrument.js
 function buildInitScript() {
   return `(() => {
     if (window.__docAgentInstalled) return;
     window.__docAgentInstalled = true;
 
+    // Sensitive-field classifier, inlined from src/recorder/sensitivity.js (pure, self-contained).
+    const sensitivityOf = (${createSensitivity.toString()})();
+
     const send = (payload) => {
       try { window.${BINDING}(JSON.stringify(payload)); } catch (e) {}
     };
 
-    const pageHasPassword = () => !!document.querySelector('input[type="password"]');
+    // Shadow DOM: e.target is retargeted to the host; composedPath()[0] is the real element.
+    const target = (e) => {
+      const p = e.composedPath ? e.composedPath() : null;
+      const t = (p && p.length ? p[0] : e.target) || null;
+      return t && t.nodeType === 1 ? t : (t && t.parentElement) || null;
+    };
 
     const isEditable = (el) => {
       if (!el || !el.tagName) return false;
@@ -166928,6 +167056,8 @@ function buildInitScript() {
       }
       return false;
     };
+
+    const isToggle = (el) => el && el.tagName === 'INPUT' && ['checkbox','radio'].includes((el.type || '').toLowerCase());
 
     const labelFor = (el) => {
       if (!el || !el.getAttribute) return null;
@@ -166965,75 +167095,149 @@ function buildInitScript() {
       return parts.join(' > ');
     };
 
+    const fieldInfo = (el, value) => ({
+      type: el.type, autocomplete: el.getAttribute('autocomplete'), name: el.getAttribute('name'), id: el.id,
+      placeholder: el.getAttribute('placeholder'), ariaLabel: el.getAttribute('aria-label'),
+      labelText: el.labels && el.labels.length ? el.labels[0].innerText : null, value: value,
+    });
+
+    const rectOf = (el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return null;
+      if (r.bottom < 0 || r.right < 0 || r.top > window.innerHeight || r.left > window.innerWidth) return null;
+      return { x: r.left, y: r.top, w: r.width, h: r.height };
+    };
+
+    // Rects of every VISIBLE sensitive field right now \u2014 the recorder paints them over.
+    // Light DOM only via querySelectorAll; the event target is added so a field inside a
+    // shadow root is covered at least when it is the one being used.
+    const sensitiveRects = (extra) => {
+      const els = Array.prototype.slice.call(document.querySelectorAll('input, textarea'));
+      if (extra && (extra.tagName === 'INPUT' || extra.tagName === 'TEXTAREA') && els.indexOf(extra) < 0) els.push(extra);
+      const out = [];
+      for (const el of els) {
+        const reason = sensitivityOf(fieldInfo(el, el.value));
+        if (!reason) continue;
+        const r = rectOf(el);
+        if (r) out.push({ x: r.x, y: r.y, w: r.w, h: r.h, reason: reason });
+      }
+      return out;
+    };
+    window.__docAgentSensitiveRects = () => sensitiveRects(null);
+
+    const base = (kind, el) => ({
+      kind: kind, ts: Date.now(),
+      label: el ? labelFor(el) : null, selector: el ? cssPath(el) : null,
+      scrollY: window.scrollY, viewportH: window.innerHeight,
+      sensitiveRects: sensitiveRects(el),
+    });
+
     const INTERACTIVE = 'a, button, [role="button"], [role="menuitem"], [role="tab"], [role="link"], input, select, textarea, [contenteditable="true"], [onclick], label, summary';
 
+    // Interactive ancestor: the usual closest(); otherwise up to 5 levels looking for a
+    // pointer cursor (SPAs wire clicks on plain divs/spans without a role).
+    const interactiveFrom = (el) => {
+      if (!el) return null;
+      const byClosest = el.closest ? el.closest(INTERACTIVE) : null;
+      if (byClosest) return byClosest;
+      let node = el, depth = 0;
+      while (node && node.nodeType === 1 && depth < 5) {
+        if (node === document.body || node === document.documentElement) return null;
+        if (getComputedStyle(node).cursor === 'pointer') return node;
+        node = node.parentElement; depth++;
+      }
+      return null;
+    };
+
     document.addEventListener('mousedown', (e) => {
-      const el = e.target && e.target.closest ? e.target.closest(INTERACTIVE) : null;
+      if (e.button !== 0) return;
+      const el = interactiveFrom(target(e));
       if (!el) return;                       // click on empty space: noise
       if (el.tagName === 'SELECT') return;   // dropdowns are handled on change
+      if (isToggle(el)) return;              // checkbox/radio are handled on change
+      if (el.tagName === 'LABEL' && isToggle(el.control)) return; // same: the change event carries the step
+      const reason = isEditable(el) ? sensitivityOf(fieldInfo(el, '')) : null;
       send({
-        kind: 'click', ts: Date.now(),
-        label: labelFor(el), selector: cssPath(el),
+        ...base('click', el),
         isEditable: isEditable(el),
-        isPassword: el.type === 'password',
+        isSensitive: !!reason, sensitiveReason: reason,
         coords: { x: e.clientX, y: e.clientY },
-        pageHasPassword: pageHasPassword(),
       });
     }, true);
 
     document.addEventListener('focusin', (e) => {
-      if (!isEditable(e.target)) return;
-      send({
-        kind: 'field-focus', ts: Date.now(),
-        label: labelFor(e.target), selector: cssPath(e.target),
-        isPassword: e.target.type === 'password',
-        pageHasPassword: pageHasPassword(),
-      });
+      const t = target(e);
+      if (!isEditable(t)) return;
+      const reason = sensitivityOf(fieldInfo(t, ''));
+      send({ ...base('field-focus', t), isSensitive: !!reason, sensitiveReason: reason });
     }, true);
 
     const commit = (el) => {
       if (!isEditable(el)) return;
-      const isPw = el.type === 'password';
-      send({
-        kind: 'field-commit', ts: Date.now(),
-        label: labelFor(el), selector: cssPath(el),
-        isPassword: isPw,
-        value: isPw ? null : (el.isContentEditable ? el.innerText : el.value),
-        pageHasPassword: pageHasPassword(),
-      });
+      const raw = el.isContentEditable ? el.innerText : el.value;
+      const reason = sensitivityOf(fieldInfo(el, raw));
+      // The value of a sensitive field never leaves the page.
+      send({ ...base('field-commit', el), isSensitive: !!reason, sensitiveReason: reason, value: reason ? null : raw });
     };
 
-    document.addEventListener('focusout', (e) => commit(e.target), true);
+    document.addEventListener('focusout', (e) => commit(target(e)), true);
 
     document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter') return;
-      const t = e.target;
-      // In a TEXTAREA/contenteditable, Enter inserts a line break \u2014 it is not a submit:
-      // no partial commit and no 'enter' event.
-      if (t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (isEditable(t)) commit(t);
-      send({
-        kind: 'enter', ts: Date.now(),
-        label: labelFor(t), selector: null,
-        pageHasPassword: pageHasPassword(),
-      });
+      const t = target(e);
+      if (e.key === 'Enter') {
+        // In a TEXTAREA/contenteditable, Enter inserts a line break \u2014 it is not a submit:
+        // no partial commit and no 'enter' event.
+        if (t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        if (isEditable(t)) commit(t);
+        send({ ...base('enter', t), selector: null });
+        return;
+      }
+      if (!(e.ctrlKey || e.altKey || e.metaKey)) return;
+      if (['Control','Alt','Meta','Shift'].includes(e.key)) return; // modifier alone
+      const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+      if (e.ctrlKey && ['C','V','A','Z'].includes(k)) return;      // copy/paste/select-all/undo are noise
+      if (!/^[A-Z0-9]$/.test(k) && !/^F([1-9]|1[0-2])$/.test(k)) return;
+      const combo = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Cmd']
+        .filter(Boolean).concat(k).join('+');
+      send({ ...base('shortcut', t), value: combo });
     }, true);
 
     document.addEventListener('change', (e) => {
-      if (!e.target || e.target.tagName !== 'SELECT') return;
-      const opt = e.target.selectedOptions && e.target.selectedOptions[0];
-      send({
-        kind: 'select', ts: Date.now(),
-        label: labelFor(e.target), selector: cssPath(e.target),
-        value: opt ? opt.innerText.trim() : String(e.target.value),
-        pageHasPassword: pageHasPassword(),
-      });
+      const t = target(e);
+      if (!t) return;
+      if (t.tagName === 'SELECT') {
+        const opt = t.selectedOptions && t.selectedOptions[0];
+        send({ ...base('select', t), value: opt ? opt.innerText.trim() : String(t.value) });
+        return;
+      }
+      if (isToggle(t)) {
+        const r = t.getBoundingClientRect();
+        send({ ...base('check', t), value: t.checked ? 'on' : 'off', coords: { x: r.left + r.width / 2, y: r.top + r.height / 2 } });
+      }
     }, true);
+
+    // Drag & drop: 'drag-start' carries the screenshot/coords (the screen before the move);
+    // 'drag' (on drop) carries the destination label. The consolidation merges the two.
+    let dragging = null;
+    document.addEventListener('dragstart', (e) => {
+      const el = target(e);
+      if (!el) return;
+      dragging = { label: labelFor(el), selector: cssPath(el) };
+      send({ ...base('drag-start', el), coords: { x: e.clientX, y: e.clientY } });
+    }, true);
+    document.addEventListener('drop', (e) => {
+      if (!dragging) return;
+      const dest = interactiveFrom(target(e)) || target(e);
+      send({ ...base('drag', null), label: dragging.label, selector: dragging.selector, target: dest ? labelFor(dest) : null });
+      dragging = null;
+    }, true);
+    document.addEventListener('dragend', () => { dragging = null; }, true);
   })();`;
 }
 var BINDING;
 var init_instrument = __esm2({
   "src/recorder/instrument.js"() {
+    init_sensitivity();
     BINDING = "__docAgentEvent";
   }
 });
