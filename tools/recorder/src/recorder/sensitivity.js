@@ -1,4 +1,4 @@
-﻿// Classifies a form field as sensitive. PURE: no DOM, no Node APIs, no imports.
+// Classifies a form field as sensitive. PURE: no DOM, no Node APIs, no imports.
 // createSensitivity is stringified into the injected page script (instrument.js) and
 // also used by the recorder as defence in depth — everything it needs lives inside it.
 // Lists come from Firefox HeuristicsRegExp, Chromium autofill, Bitwarden and KeePassXC,
