@@ -137446,10 +137446,10 @@ Workaround: Set the HOME=/root environment variable${process.env.GITHUB_ACTION ?
         init_debugLogger();
         init_network();
         SyncServer = class _SyncServer {
-          constructor(server2, baseUrl) {
+          constructor(server2, baseUrl2) {
             this._handlers = /* @__PURE__ */ new Map();
             this._server = server2;
-            this._baseUrl = baseUrl;
+            this._baseUrl = baseUrl2;
             this._server.on("request", (req, res) => this._handleRequest(req, res));
           }
           static async start() {
@@ -164559,45 +164559,89 @@ function consolidate(events) {
   const steps = [];
   const focusBySelector = /* @__PURE__ */ new Map();
   const lastCommitBySelector = /* @__PURE__ */ new Map();
+  const lastScrollByPage = /* @__PURE__ */ new Map();
   let lastClick = null;
   let lastNav = null;
+  let lastCheck = null;
+  let lastShortcut = null;
+  let pendingDrag = null;
+  const scrolledFlag = (ev) => {
+    if (typeof ev.scrollY !== "number") return false;
+    const key = baseUrl(ev.url);
+    const prev = lastScrollByPage.get(key);
+    lastScrollByPage.set(key, ev.scrollY);
+    if (prev == null) return false;
+    const half = (ev.viewportH ?? 0) / 2;
+    return half > 0 && Math.abs(ev.scrollY - prev) > half;
+  };
   for (const ev of events) {
     switch (ev.kind) {
       case "field-focus":
-        focusBySelector.set(ev.selector, ev);
+        focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev) });
         lastCommitBySelector.delete(ev.selector);
         break;
       case "click": {
         if (ev.isEditable) {
-          focusBySelector.set(ev.selector, ev);
+          focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev) });
           lastCommitBySelector.delete(ev.selector);
           break;
         }
+        const scrolled = scrolledFlag(ev);
         if (lastClick && lastClick.selector === ev.selector && ev.ts - lastClick.ts < CLICK_DEDUP_MS) break;
         lastClick = ev;
-        steps.push(makeStep("click", ev, { screenshot: ev.screenshot, coords: ev.coords }));
+        steps.push(makeStep("click", ev, { screenshot: ev.screenshot, coords: ev.coords, scrolled }));
         break;
       }
       case "field-commit": {
-        if (!ev.isPassword && (ev.value == null || ev.value === "")) break;
+        if (!ev.isSensitive && (ev.value == null || ev.value === "")) break;
         if (lastCommitBySelector.has(ev.selector) && lastCommitBySelector.get(ev.selector) === ev.value) break;
         lastCommitBySelector.set(ev.selector, ev.value);
         const focus = focusBySelector.get(ev.selector) ?? null;
         steps.push(makeStep("fill", ev, {
-          value: ev.isPassword ? null : ev.value,
+          value: ev.isSensitive ? null : ev.value,
           screenshot: focus?.screenshot ?? ev.screenshot ?? null,
-          coords: focus?.coords ?? null
+          coords: focus?.coords ?? null,
+          sensitiveRects: focus?.screenshot ? focus.sensitiveRects ?? [] : ev.sensitiveRects ?? [],
+          scrolled: focus ? focus.scrolled : scrolledFlag(ev)
         }));
         focusBySelector.delete(ev.selector);
         break;
       }
       case "select":
-        steps.push(makeStep("select", ev, { value: ev.value, screenshot: ev.screenshot }));
+        steps.push(makeStep("select", ev, { value: ev.value, screenshot: ev.screenshot, scrolled: scrolledFlag(ev) }));
         break;
+      case "check": {
+        const scrolled = scrolledFlag(ev);
+        if (lastCheck && lastCheck.selector === ev.selector && lastCheck.value === ev.value && ev.ts - lastCheck.ts < CLICK_DEDUP_MS) break;
+        lastCheck = ev;
+        steps.push(makeStep("check", ev, { value: ev.value, screenshot: ev.screenshot, coords: ev.coords, scrolled }));
+        break;
+      }
+      case "shortcut": {
+        if (lastShortcut && lastShortcut.value === ev.value && ev.ts - lastShortcut.ts < CLICK_DEDUP_MS) break;
+        lastShortcut = ev;
+        steps.push(makeStep("shortcut", ev, { value: ev.value, screenshot: ev.screenshot }));
+        break;
+      }
+      case "drag-start":
+        pendingDrag = ev;
+        break;
+      case "drag": {
+        const start3 = pendingDrag;
+        pendingDrag = null;
+        steps.push(makeStep("drag", ev, {
+          target: ev.target ?? null,
+          screenshot: start3?.screenshot ?? null,
+          coords: start3?.coords ?? null,
+          sensitiveRects: start3?.sensitiveRects ?? []
+        }));
+        break;
+      }
       case "enter":
         steps.push(makeStep("enter", ev, { screenshot: null }));
         break;
       case "navigation": {
+        lastScrollByPage.delete(baseUrl(ev.url));
         if (lastNav && lastNav.url === ev.url && ev.ts - lastNav.ts < NAV_DEDUP_MS) break;
         lastNav = ev;
         steps.push(makeStep("navigation", ev, { screenshot: ev.screenshot }));
@@ -164616,17 +164660,21 @@ function makeStep(type3, ev, extra) {
     url: ev.url,
     title: ev.title ?? null,
     ts: ev.ts,
-    isPassword: ev.isPassword ?? false,
+    isSensitive: ev.isSensitive ?? false,
+    sensitiveReason: ev.isSensitive ? ev.sensitiveReason ?? null : null,
     coords: null,
     screenshot: null,
+    sensitiveRects: ev.sensitiveRects ?? [],
+    // internal: consumed by session.finalize, then dropped
     ...extra
   };
 }
-var CLICK_DEDUP_MS, NAV_DEDUP_MS;
+var CLICK_DEDUP_MS, NAV_DEDUP_MS, baseUrl;
 var init_consolidate = __esm2({
   "src/recorder/consolidate.js"() {
     CLICK_DEDUP_MS = 500;
     NAV_DEDUP_MS = 1e3;
+    baseUrl = (u) => String(u ?? "").split(/[?#]/)[0];
   }
 });
 
