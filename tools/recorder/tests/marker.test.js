@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PNG } from 'pngjs';
-import { drawMarker } from '../src/recorder/marker.js';
+import { drawMarker, drawRedaction } from '../src/recorder/marker.js';
 
 function blankPng(width, height) {
   const png = new PNG({ width, height });
@@ -33,4 +33,31 @@ test('coordinates on the edge are clamped without throwing', async () => {
   const out = await drawMarker(blankPng(100, 100), { x: 0, y: 0 });
   const meta = PNG.sync.read(out);
   assert.equal(meta.width, 100);
+});
+
+test('drawRedaction paints the rect (+2px) solid dark grey and leaves the outside untouched', async () => {
+  const out = await drawRedaction(blankPng(200, 100), [{ x: 50, y: 20, w: 40, h: 10 }]);
+  const meta = PNG.sync.read(out);
+  assert.equal(meta.width, 200);
+  assert.equal(meta.height, 100);
+  assert.deepEqual(pixelAt(out, 70, 25), { r: 43, g: 43, b: 43 });   // inside
+  assert.deepEqual(pixelAt(out, 49, 25), { r: 43, g: 43, b: 43 });   // 1px padding left
+  assert.deepEqual(pixelAt(out, 91, 25), { r: 43, g: 43, b: 43 });   // 1px padding right (50+40+1)
+  assert.deepEqual(pixelAt(out, 46, 25), { r: 255, g: 255, b: 255 }); // beyond the 2px padding
+  assert.deepEqual(pixelAt(out, 70, 40), { r: 255, g: 255, b: 255 }); // below
+});
+
+test('drawRedaction handles several rects and rects crossing the image border', async () => {
+  const out = await drawRedaction(blankPng(100, 100), [
+    { x: 90, y: 90, w: 50, h: 50 }, // overflows bottom-right
+    { x: -5, y: -5, w: 10, h: 10 }, // overflows top-left
+  ]);
+  assert.deepEqual(pixelAt(out, 99, 99), { r: 43, g: 43, b: 43 });
+  assert.deepEqual(pixelAt(out, 0, 0), { r: 43, g: 43, b: 43 });
+  assert.deepEqual(pixelAt(out, 50, 50), { r: 255, g: 255, b: 255 });
+});
+
+test('drawRedaction with an empty list returns an equivalent image', async () => {
+  const out = await drawRedaction(blankPng(20, 20), []);
+  assert.deepEqual(pixelAt(out, 10, 10), { r: 255, g: 255, b: 255 });
 });

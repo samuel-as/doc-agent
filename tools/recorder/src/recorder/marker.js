@@ -33,3 +33,25 @@ export async function drawMarker(inputPng, { x, y }) {
   }
   return PNG.sync.write(png);
 }
+
+const REDACT = { r: 43, g: 43, b: 43 }; // #2b2b2b — solid, never pixelated (pixelation is reversible)
+const REDACT_PAD = 2;
+
+// Paints solid boxes over sensitive fields. Called BEFORE the PNG reaches the disk.
+export async function drawRedaction(inputPng, rects) {
+  const png = PNG.sync.read(inputPng);
+  const { width, height, data } = png;
+  for (const r of rects) {
+    const x0 = Math.max(0, Math.floor(r.x - REDACT_PAD));
+    const y0 = Math.max(0, Math.floor(r.y - REDACT_PAD));
+    const x1 = Math.min(width - 1, Math.ceil(r.x + r.w + REDACT_PAD) - 1);
+    const y1 = Math.min(height - 1, Math.ceil(r.y + r.h + REDACT_PAD) - 1);
+    for (let py = y0; py <= y1; py++) {
+      for (let px = x0; px <= x1; px++) {
+        const i = (width * py + px) << 2;
+        data[i] = REDACT.r; data[i + 1] = REDACT.g; data[i + 2] = REDACT.b; data[i + 3] = 255;
+      }
+    }
+  }
+  return PNG.sync.write(png);
+}
