@@ -1,7 +1,22 @@
 // src/recorder/recorder.js
 import { BINDING, buildInitScript } from './instrument.js';
 
-const NO_SCREENSHOT_KINDS = new Set(['enter', 'field-commit']);
+const NO_SCREENSHOT_KINDS = new Set(['enter', 'field-commit', 'drag']);
+
+// Resolves when the DOM has been quiet for `quiet` ms, or after `cap` ms at most.
+// Covers SPA route changes, where 'load' is already true when framenavigated fires.
+const SETTLE_EXPR = `new Promise((resolve) => {
+  const quiet = 300, cap = 1500;
+  let timer = null;
+  const done = () => { try { obs.disconnect(); } catch (e) {} resolve(true); };
+  const obs = new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(done, quiet); });
+  obs.observe(document, { subtree: true, childList: true, attributes: true });
+  timer = setTimeout(done, quiet);
+  setTimeout(done, cap);
+})`;
+const SETTLE_NODE_CAP_MS = 2000; // if the page never answers, do not hang the recording
+
+const RECTS_EXPR = `(window.__docAgentSensitiveRects ? window.__docAgentSensitiveRects() : null)`;
 
 export class Recorder {
   constructor(context, session) {
@@ -10,15 +25,14 @@ export class Recorder {
     this._shotChain = Promise.resolve();
     // PER-TAB security state: "this page has a password field" and "this page was
     // reached from a password screen" are facts about a single tab — in a multi-tab
-    // context, a login screen in tab A must not suppress screenshots nor shorten
-    // URLs for navigations in tab B (and vice versa).
-    this._pageState = new WeakMap(); // Page -> { hadPassword, sensitiveBase }
+    // context, a login screen in tab A must not shorten URLs in tab B (and vice versa).
+    this._pageState = new WeakMap(); // Page -> { hadPasswordField, sensitiveBase }
   }
 
   _stateFor(page) {
     let st = this._pageState.get(page);
     if (!st) {
-      st = { hadPassword: false, sensitiveBase: null };
+      st = { hadPasswordField: false, sensitiveBase: null };
       this._pageState.set(page, st);
     }
     return st;
@@ -42,15 +56,23 @@ export class Recorder {
     });
   }
 
+  async settle(page) {
+    await Promise.race([
+      page.evaluate(SETTLE_EXPR).catch(() => {}),
+      new Promise((r) => setTimeout(r, SETTLE_NODE_CAP_MS)),
+    ]);
+  }
+
   async onNavigation(page) {
     // A navigation LEAVING a password screen is sensitive: a login submit can carry
     // credentials in the URL (GET form, token in the query/fragment). In that case the
-    // URL is recorded without query/hash and the screenshot is suppressed; while the
-    // resulting page stays the same, the URLs of the following steps are shortened too.
-    // The decision is made HERE, synchronously in framenavigated, before any await:
-    // an event on the destination page during loading must not clear the flag.
+    // URL is recorded without query/hash; while the resulting page stays the same, the
+    // URLs of the following steps are shortened too. The decision is made HERE,
+    // synchronously in framenavigated, before any await: an event on the destination
+    // page during loading must not clear the flag. Screenshots are no longer suppressed —
+    // sensitive fields are painted over from the rects instead.
     const st = this._stateFor(page);
-    const cameFromPassword = st.hadPassword;
+    const cameFromPassword = st.hadPasswordField;
     const applySensitivity = () => {
       const base = page.url().split(/[?#]/)[0];
       if (cameFromPassword) st.sensitiveBase = base;
@@ -58,30 +80,36 @@ export class Recorder {
     };
     applySensitivity(); // protection applies right away to events arriving during the load
     await page.waitForLoadState('load', { timeout: 10_000 }).catch(() => {});
+    await this.settle(page);
     await page.evaluate(buildInitScript()).catch(() => {}); // re-instrument after the navigation
     const hasPw = await page
       .evaluate(`!!document.querySelector('input[type="password"]')`)
-      .catch(() => true); // when in doubt, do not take a screenshot
-    st.hadPassword = hasPw;
+      .catch(() => false);
+    st.hadPasswordField = hasPw;
     applySensitivity(); // reapply with the final URL (redirects during the load)
-    const shot = hasPw || cameFromPassword ? null : await this.screenshot(page);
+    // Rects come BEFORE the screenshot so they describe the same screen state. If the
+    // page cannot report them, no screenshot: an unredacted field must never be saved.
+    const rects = await page.evaluate(RECTS_EXPR).catch(() => null);
+    const shot = Array.isArray(rects) ? await this.screenshot(page) : null;
     await this.session.addEvent({
       kind: 'navigation', ts: Date.now(),
       url: this._safeUrl(page), title: await page.title().catch(() => null),
-      label: null, selector: null, isPassword: false, isEditable: false,
-      value: null, coords: null,
+      label: null, selector: null, isSensitive: false, sensitiveReason: null, isEditable: false,
+      value: null, coords: null, sensitiveRects: Array.isArray(rects) ? rects : [],
     }, shot);
   }
 
   async onEvent(page, payload) {
-    const { pageHasPassword, ...ev } = payload;
-    this._stateFor(page).hadPassword = pageHasPassword;
-    const wantsShot = !pageHasPassword && !NO_SCREENSHOT_KINDS.has(ev.kind);
+    const ev = { ...payload };
+    const rects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
+    this._stateFor(page).hadPasswordField = rects.some((r) => r.reason === 'password');
+    const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind);
     const shot = wantsShot ? await this.screenshot(page) : null;
     await this.session.addEvent({
-      isPassword: false, isEditable: false, value: null, coords: null,
+      isSensitive: false, sensitiveReason: null, isEditable: false, value: null, coords: null,
       label: null, selector: null,
       ...ev,
+      sensitiveRects: rects,
       url: this._safeUrl(page),
       title: await page.title().catch(() => null),
     }, shot);

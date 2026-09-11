@@ -54,30 +54,35 @@ function fakes() {
   return { calls, session, page };
 }
 
-test('takes a screenshot for click and field-focus; never for enter and field-commit', async () => {
+const NO_RECTS = [];
+const PW_RECTS = [{ x: 10, y: 10, w: 100, h: 20, reason: 'password' }];
+
+test('takes a screenshot for click, field-focus, check, shortcut, drag-start; never for enter, field-commit, drag', async () => {
   const { calls, session, page } = fakes();
   const rec = new Recorder(null, session);
-  await rec.onEvent(page, { kind: 'click', ts: 1, pageHasPassword: false, coords: { x: 1, y: 2 } });
-  await rec.onEvent(page, { kind: 'field-focus', ts: 2, pageHasPassword: false });
-  await rec.onEvent(page, { kind: 'field-commit', ts: 3, pageHasPassword: false, value: 'abc' });
-  await rec.onEvent(page, { kind: 'enter', ts: 4, pageHasPassword: false });
+  for (const kind of ['click', 'field-focus', 'check', 'shortcut', 'drag-start']) {
+    await rec.onEvent(page, { kind, ts: 1, sensitiveRects: NO_RECTS });
+  }
+  for (const kind of ['enter', 'field-commit', 'drag']) {
+    await rec.onEvent(page, { kind, ts: 2, sensitiveRects: NO_RECTS, value: 'abc' });
+  }
+  assert.ok(calls.slice(0, 5).every((c) => Buffer.isBuffer(c.shot)));
+  assert.ok(calls.slice(5).every((c) => c.shot === null));
+});
+
+test('a page with a password field STILL gets a screenshot (redaction happens later, from the rects)', async () => {
+  const { calls, session, page } = fakes();
+  const rec = new Recorder(null, session);
+  await rec.onEvent(page, { kind: 'click', ts: 1, sensitiveRects: PW_RECTS, coords: { x: 1, y: 2 } });
   assert.ok(Buffer.isBuffer(calls[0].shot));
-  assert.ok(Buffer.isBuffer(calls[1].shot));
-  assert.equal(calls[2].shot, null);
-  assert.equal(calls[3].shot, null);
+  assert.deepEqual(calls[0].ev.sensitiveRects, PW_RECTS);
 });
 
-test('page with a password field: screenshot suppressed', async () => {
+test('an event without sensitiveRects gets an empty list (never undefined) and no leftover fields', async () => {
   const { calls, session, page } = fakes();
   const rec = new Recorder(null, session);
-  await rec.onEvent(page, { kind: 'click', ts: 1, pageHasPassword: true, coords: { x: 1, y: 2 } });
-  assert.equal(calls[0].shot, null);
-});
-
-test('Recorder enriches the event with url/title and does not leak pageHasPassword', async () => {
-  const { calls, session, page } = fakes();
-  const rec = new Recorder(null, session);
-  await rec.onEvent(page, { kind: 'click', ts: 1, pageHasPassword: false, label: 'OK' });
+  await rec.onEvent(page, { kind: 'click', ts: 1, label: 'OK' });
+  assert.deepEqual(calls[0].ev.sensitiveRects, []);
   assert.equal(calls[0].ev.url, 'https://app.example.com/x');
   assert.equal(calls[0].ev.title, 'System X');
   assert.equal(calls[0].ev.label, 'OK');
@@ -99,10 +104,9 @@ test('screenshot captures are serialized: the next one only starts when the prev
     },
   };
   const rec = new Recorder(null, session);
-  // two concurrent events, like a burst of clicks
   await Promise.all([
-    rec.onEvent(page, { kind: 'click', ts: 1, pageHasPassword: false }),
-    rec.onEvent(page, { kind: 'click', ts: 2, pageHasPassword: false }),
+    rec.onEvent(page, { kind: 'click', ts: 1, sensitiveRects: NO_RECTS }),
+    rec.onEvent(page, { kind: 'click', ts: 2, sensitiveRects: NO_RECTS }),
   ]);
   assert.deepEqual(log, ['start-1', 'end-1', 'start-2', 'end-2']);
 });
@@ -112,82 +116,117 @@ test('screenshot captures are serialized: the next one only starts when the prev
 function fakeTab() {
   const tab = {
     _url: 'about:blank',
-    _hasPw: false, // what the password evaluate() will answer
+    _hasPw: false,   // answer to the password-field probe
+    _rects: [],      // answer to __docAgentSensitiveRects()
+    _settleDelay: 0, // how long the settle evaluate takes
     url: () => tab._url,
     title: async () => 'T',
     waitForLoadState: async () => {},
-    evaluate: async () => tab._hasPw,
+    evaluate: async (expr) => {
+      const s = String(expr);
+      if (s.includes('MutationObserver')) { await new Promise((r) => setTimeout(r, tab._settleDelay)); return true; }
+      if (s.includes('__docAgentSensitiveRects')) return tab._rects;
+      if (s.includes('input[type="password"]')) return tab._hasPw;
+      return undefined; // init script re-injection
+    },
     screenshot: async () => Buffer.from('png'),
   };
   return tab;
 }
 
-test('navigation leaving a password screen: URL without query/hash and no screenshot; following steps on the same page too', async () => {
+test('navigation: screenshot taken with the page rects attached; URL kept in full when not coming from a password screen', async () => {
   const { calls, session } = fakes();
   const rec = new Recorder(null, session);
   const tab = fakeTab();
-  // an event on a login screen marks THIS tab as "has a password"
-  tab._url = 'https://app.example.com/login'; tab._hasPw = true;
-  await rec.onEvent(tab, { kind: 'click', ts: 1, pageHasPassword: true });
-  // login submit on the same tab: a GET form leaks the password into the destination URL
-  tab._url = 'https://app.example.com/home?pwd=SECRET#tk=SECRET'; tab._hasPw = false;
+  tab._url = 'https://app.example.com/list?tab=2'; tab._rects = [];
   await rec.onNavigation(tab);
-  assert.equal(calls[1].ev.url, 'https://app.example.com/home'); // no query, no hash
-  assert.equal(calls[1].shot, null); // no screenshot on landing from the login
-  // a later click on the SAME page: URL stays shortened, screenshots come back
-  await rec.onEvent(tab, { kind: 'click', ts: 3, pageHasPassword: false });
-  assert.equal(calls[2].ev.url, 'https://app.example.com/home');
-  assert.ok(Buffer.isBuffer(calls[2].shot));
-  // an ordinary navigation after that: full URL and normal screenshot
-  tab._url = 'https://app.example.com/list?tab=2';
-  await rec.onNavigation(tab);
-  assert.equal(calls[3].ev.url, 'https://app.example.com/list?tab=2');
-  assert.ok(Buffer.isBuffer(calls[3].shot));
+  assert.equal(calls[0].ev.kind, 'navigation');
+  assert.equal(calls[0].ev.url, 'https://app.example.com/list?tab=2');
+  assert.ok(Buffer.isBuffer(calls[0].shot));
+  assert.deepEqual(calls[0].ev.sensitiveRects, []);
 });
 
-test('multi-tab: a password screen in tab A neither shortens the URL nor suppresses the navigation screenshot in tab B', async () => {
+test('navigation onto a login page: screenshot taken, password rects attached for redaction', async () => {
+  const { calls, session } = fakes();
+  const rec = new Recorder(null, session);
+  const tab = fakeTab();
+  tab._url = 'https://app.example.com/login'; tab._hasPw = true; tab._rects = PW_RECTS;
+  await rec.onNavigation(tab);
+  assert.ok(Buffer.isBuffer(calls[0].shot));
+  assert.deepEqual(calls[0].ev.sensitiveRects, PW_RECTS);
+});
+
+test('navigation leaving a password screen: URL without query/hash (screenshot allowed); following steps on the same page too', async () => {
+  const { calls, session } = fakes();
+  const rec = new Recorder(null, session);
+  const tab = fakeTab();
+  tab._url = 'https://app.example.com/login'; tab._hasPw = true;
+  await rec.onEvent(tab, { kind: 'click', ts: 1, sensitiveRects: PW_RECTS }); // marks THIS tab as "has a password field"
+  tab._url = 'https://app.example.com/home?pwd=SECRET#tk=SECRET'; tab._hasPw = false; tab._rects = [];
+  await rec.onNavigation(tab);
+  assert.equal(calls[1].ev.url, 'https://app.example.com/home'); // no query, no hash
+  assert.ok(Buffer.isBuffer(calls[1].shot));                      // screenshot is no longer suppressed
+  await rec.onEvent(tab, { kind: 'click', ts: 3, sensitiveRects: [] });
+  assert.equal(calls[2].ev.url, 'https://app.example.com/home');  // still shortened on the same page
+  tab._url = 'https://app.example.com/list?tab=2';
+  await rec.onNavigation(tab);
+  assert.equal(calls[3].ev.url, 'https://app.example.com/list?tab=2'); // ordinary navigation: full URL
+});
+
+test('multi-tab: a password screen in tab A does not shorten URLs in tab B', async () => {
   const { calls, session } = fakes();
   const rec = new Recorder(null, session);
   const tabA = fakeTab();
   const tabB = fakeTab();
-  // tab A is on a login screen
   tabA._url = 'https://app.example.com/login'; tabA._hasPw = true;
-  await rec.onEvent(tabA, { kind: 'click', ts: 1, pageHasPassword: true });
-  // interleaved navigation in tab B: it did NOT come from a password screen
+  await rec.onEvent(tabA, { kind: 'click', ts: 1, sensitiveRects: PW_RECTS });
   tabB._url = 'https://intranet.example.com/dashboard?tab=2';
   await rec.onNavigation(tabB);
-  assert.equal(calls[1].ev.url, 'https://intranet.example.com/dashboard?tab=2'); // full URL
-  assert.ok(Buffer.isBuffer(calls[1].shot)); // normal screenshot
-  // an event in tab B (no password) must not clear tab A protection:
-  await rec.onEvent(tabB, { kind: 'click', ts: 2, pageHasPassword: false });
+  assert.equal(calls[1].ev.url, 'https://intranet.example.com/dashboard?tab=2');
+  await rec.onEvent(tabB, { kind: 'click', ts: 2, sensitiveRects: [] });
   tabA._url = 'https://app.example.com/home?pwd=SECRET'; tabA._hasPw = false;
   await rec.onNavigation(tabA);
-  const navA = calls[calls.length - 1];
-  assert.equal(navA.ev.url, 'https://app.example.com/home'); // tab A is still protected
-  assert.equal(navA.shot, null);
+  assert.equal(calls[calls.length - 1].ev.url, 'https://app.example.com/home'); // tab A is still protected
 });
 
-test('a click on the destination page during the load does not clear the navigation protection (decided in framenavigated)', async () => {
+test('a click on the destination page during the load does not clear the URL protection (decided in framenavigated)', async () => {
   const { calls, session } = fakes();
   const rec = new Recorder(null, session);
   const tab = fakeTab();
   tab._url = 'https://app.example.com/login'; tab._hasPw = true;
-  await rec.onEvent(tab, { kind: 'click', ts: 1, pageHasPassword: true });
-  // a sensitive navigation with a slow load; a click on the destination arrives midway
+  await rec.onEvent(tab, { kind: 'click', ts: 1, sensitiveRects: PW_RECTS });
   tab._url = 'https://app.example.com/home?pwd=SECRET'; tab._hasPw = false;
   let releaseLoad;
   tab.waitForLoadState = () => new Promise((r) => { releaseLoad = r; });
   const nav = rec.onNavigation(tab);
-  await new Promise((r) => setTimeout(r, 5)); // onNavigation parked in waitForLoadState
-  await rec.onEvent(tab, { kind: 'click', ts: 2, pageHasPassword: false });
+  await new Promise((r) => setTimeout(r, 5));
+  await rec.onEvent(tab, { kind: 'click', ts: 2, sensitiveRects: [] });
   releaseLoad();
   await nav;
-  const navCall = calls.find((c) => c.ev.kind === 'navigation');
-  assert.equal(navCall.ev.url, 'https://app.example.com/home'); // still without the query
-  assert.equal(navCall.shot, null); // and without a screenshot
-  // the click that arrived during the load also came out with the shortened URL
-  const clickCall = calls.find((c) => c.ev.kind === 'click' && c.ev.ts === 2);
-  assert.equal(clickCall.ev.url, 'https://app.example.com/home');
+  assert.equal(calls.find((c) => c.ev.kind === 'navigation').ev.url, 'https://app.example.com/home');
+  assert.equal(calls.find((c) => c.ev.kind === 'click' && c.ev.ts === 2).ev.url, 'https://app.example.com/home');
+});
+
+test('navigation: when the page cannot report its rects, no screenshot is taken (privacy first)', async () => {
+  const { calls, session } = fakes();
+  const rec = new Recorder(null, session);
+  const tab = fakeTab();
+  tab._url = 'chrome://settings';
+  tab.evaluate = async () => { throw new Error('cannot evaluate here'); };
+  await rec.onNavigation(tab);
+  assert.equal(calls[0].shot, null);
+  assert.deepEqual(calls[0].ev.sensitiveRects, []);
+});
+
+test('settle waits for the page to go quiet but never longer than its cap', async () => {
+  const { session } = fakes();
+  const rec = new Recorder(null, session);
+  const tab = fakeTab();
+  tab.evaluate = () => new Promise(() => {}); // a frozen page never answers
+  const t0 = Date.now();
+  await rec.settle(tab);
+  const elapsed = Date.now() - t0;
+  assert.ok(elapsed >= 1900 && elapsed < 3000, `settle took ${elapsed}ms; expected ~2000ms cap`);
 });
 
 test('a screenshot failure does not drop the event (shot null)', async () => {
@@ -197,7 +236,7 @@ test('a screenshot failure does not drop the event (shot null)', async () => {
     screenshot: async () => { throw new Error('page closed'); },
   };
   const rec = new Recorder(null, session);
-  await rec.onEvent(page, { kind: 'click', ts: 1, pageHasPassword: false });
+  await rec.onEvent(page, { kind: 'click', ts: 1, sensitiveRects: [] });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].shot, null);
 });

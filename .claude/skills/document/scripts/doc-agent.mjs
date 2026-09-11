@@ -167247,11 +167247,22 @@ var recorder_exports = {};
 __export2(recorder_exports, {
   Recorder: () => Recorder2
 });
-var NO_SCREENSHOT_KINDS, Recorder2;
+var NO_SCREENSHOT_KINDS, SETTLE_EXPR, SETTLE_NODE_CAP_MS, RECTS_EXPR, Recorder2;
 var init_recorder2 = __esm2({
   "src/recorder/recorder.js"() {
     init_instrument();
-    NO_SCREENSHOT_KINDS = /* @__PURE__ */ new Set(["enter", "field-commit"]);
+    NO_SCREENSHOT_KINDS = /* @__PURE__ */ new Set(["enter", "field-commit", "drag"]);
+    SETTLE_EXPR = `new Promise((resolve) => {
+  const quiet = 300, cap = 1500;
+  let timer = null;
+  const done = () => { try { obs.disconnect(); } catch (e) {} resolve(true); };
+  const obs = new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(done, quiet); });
+  obs.observe(document, { subtree: true, childList: true, attributes: true });
+  timer = setTimeout(done, quiet);
+  setTimeout(done, cap);
+})`;
+    SETTLE_NODE_CAP_MS = 2e3;
+    RECTS_EXPR = `(window.__docAgentSensitiveRects ? window.__docAgentSensitiveRects() : null)`;
     Recorder2 = class {
       constructor(context2, session2) {
         this.context = context2;
@@ -167262,7 +167273,7 @@ var init_recorder2 = __esm2({
       _stateFor(page) {
         let st2 = this._pageState.get(page);
         if (!st2) {
-          st2 = { hadPassword: false, sensitiveBase: null };
+          st2 = { hadPasswordField: false, sensitiveBase: null };
           this._pageState.set(page, st2);
         }
         return st2;
@@ -167286,9 +167297,16 @@ var init_recorder2 = __esm2({
           });
         });
       }
+      async settle(page) {
+        await Promise.race([
+          page.evaluate(SETTLE_EXPR).catch(() => {
+          }),
+          new Promise((r) => setTimeout(r, SETTLE_NODE_CAP_MS))
+        ]);
+      }
       async onNavigation(page) {
         const st2 = this._stateFor(page);
-        const cameFromPassword = st2.hadPassword;
+        const cameFromPassword = st2.hadPasswordField;
         const applySensitivity = () => {
           const base = page.url().split(/[?#]/)[0];
           if (cameFromPassword) st2.sensitiveBase = base;
@@ -167297,12 +167315,14 @@ var init_recorder2 = __esm2({
         applySensitivity();
         await page.waitForLoadState("load", { timeout: 1e4 }).catch(() => {
         });
+        await this.settle(page);
         await page.evaluate(buildInitScript()).catch(() => {
         });
-        const hasPw = await page.evaluate(`!!document.querySelector('input[type="password"]')`).catch(() => true);
-        st2.hadPassword = hasPw;
+        const hasPw = await page.evaluate(`!!document.querySelector('input[type="password"]')`).catch(() => false);
+        st2.hadPasswordField = hasPw;
         applySensitivity();
-        const shot = hasPw || cameFromPassword ? null : await this.screenshot(page);
+        const rects = await page.evaluate(RECTS_EXPR).catch(() => null);
+        const shot = Array.isArray(rects) ? await this.screenshot(page) : null;
         await this.session.addEvent({
           kind: "navigation",
           ts: Date.now(),
@@ -167310,25 +167330,30 @@ var init_recorder2 = __esm2({
           title: await page.title().catch(() => null),
           label: null,
           selector: null,
-          isPassword: false,
+          isSensitive: false,
+          sensitiveReason: null,
           isEditable: false,
           value: null,
-          coords: null
+          coords: null,
+          sensitiveRects: Array.isArray(rects) ? rects : []
         }, shot);
       }
       async onEvent(page, payload) {
-        const { pageHasPassword, ...ev } = payload;
-        this._stateFor(page).hadPassword = pageHasPassword;
-        const wantsShot = !pageHasPassword && !NO_SCREENSHOT_KINDS.has(ev.kind);
+        const ev = { ...payload };
+        const rects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
+        this._stateFor(page).hadPasswordField = rects.some((r) => r.reason === "password");
+        const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind);
         const shot = wantsShot ? await this.screenshot(page) : null;
         await this.session.addEvent({
-          isPassword: false,
+          isSensitive: false,
+          sensitiveReason: null,
           isEditable: false,
           value: null,
           coords: null,
           label: null,
           selector: null,
           ...ev,
+          sensitiveRects: rects,
           url: this._safeUrl(page),
           title: await page.title().catch(() => null)
         }, shot);
