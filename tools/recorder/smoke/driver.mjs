@@ -21,6 +21,11 @@ const failures = [];
 const check = (ok, msg) => { if (!ok) failures.push(msg); };
 const fileUrl = (p) => 'file:///' + p.replaceAll('\\', '/');
 const REDACT = [43, 43, 43];
+// The recorder captures one screenshot at a time (~100 ms each, the first one ~700 ms)
+// while playwright fires a whole form in under a second. A real user is far slower, so
+// the driver waits between interactions: without it a capture lands on the screen that
+// came NEXT, and any assertion about the pixels of a step would be meaningless.
+const pace = () => new Promise((r) => setTimeout(r, 500));
 const SENTINELS = {
   pwd: 'PASSWORD-SENTINEL-123', otp: '917364', card: '4111111111111111',
   cpf: '52998224725', phone: '11987654321', ticket: 'TICKET-778899',
@@ -59,14 +64,16 @@ const boxes = {}; // css-pixel boxes of sensitive fields, measured before the fi
 
 if (mode === 'security') {
   await page.goto(fileUrl(path.join(here, 'fixtures', 'login.html')));
-  await page.click('#user'); await page.fill('#user', 'demo.user');
+  await page.click('#user'); await page.fill('#user', 'demo.user'); await pace();
   for (const id of ['pwd', 'otp', 'card', 'cpf', 'phone', 'ticket']) {
-    await page.click('#' + id); await page.fill('#' + id, SENTINELS[id]);
+    await page.click('#' + id); await page.fill('#' + id, SENTINELS[id]); await pace();
   }
-  await page.click('#extra-doc'); await page.keyboard.press('Tab'); // sensitive and left empty
+  await page.click('#extra-doc'); await page.keyboard.press('Tab'); await pace(); // sensitive and left empty
   for (const id of ['pwd', 'otp', 'card', 'cpf', 'phone']) boxes[id] = await page.locator('#' + id).boundingBox();
   boxes.ticket = await page.locator('#ticket').boundingBox();
-  await page.click('#login');
+  // A human presses and releases; playwright's instant click commits the navigation
+  // while the capture of the login screen is still being taken.
+  await page.click('#login', { delay: 300 });
   await page.waitForLoadState('load');
 } else if (mode === 'dynamic') {
   await page.goto(fileUrl(path.join(here, 'fixtures', 'spa.html')));
@@ -74,15 +81,16 @@ if (mode === 'security') {
   await new Promise((r) => setTimeout(r, 2500)); // let the SPA "screen" render and the recorder settle
 } else {
   await page.goto(fileUrl(path.join(here, 'fixtures', 'form.html')));
-  await page.click('#reason'); await page.fill('#reason', 'test ticket');
-  await page.click('#detail'); await page.fill('#detail', 'two lines');
-  await page.click('#notes'); await page.fill('#notes', NOTES_CPF);
-  await page.selectOption('#type', 'Request');
-  await page.click('#urgent');
+  await page.click('#reason'); await page.fill('#reason', 'test ticket'); await pace();
+  await page.click('#detail'); await page.fill('#detail', 'two lines'); await pace();
+  await page.click('#notes'); await page.fill('#notes', NOTES_CPF); await pace();
+  await page.selectOption('#type', 'Request'); await pace();
+  await page.click('#urgent'); await pace();
   await page.click('h1'); // plain text: no step, and focus goes back to <body>
   await page.keyboard.press('Control+S'); // pressed with nothing focused: the step must have no label
-  await page.dragAndDrop('#item-a', '#done');
-  await page.click('#submit'); // below a 2000px spacer: playwright scrolls, the recorder must flag it
+  await pace();
+  await page.dragAndDrop('#item-a', '#done'); await pace();
+  await page.click('#submit', { delay: 300 }); // below a 2000px spacer: playwright scrolls, the recorder must flag it
   await page.waitForLoadState('load');
 }
 // Let the screenshots settle before closing the browser. This must be > 3s: a capture
