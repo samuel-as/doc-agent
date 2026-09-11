@@ -2,10 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { consolidate } from './consolidate.js';
-import { drawMarker, drawRedaction } from './marker.js';
-
-// Re-export drawRedaction for use in redaction (Task 4+).
-export { drawRedaction };
+import { drawMarker } from './marker.js';
 
 // Local-time stamp YYYY-MM-DD-HHMM: each recording gets its own folder, so earlier
 // takes of the same procedure are preserved.
