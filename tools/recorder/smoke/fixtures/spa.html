@@ -16,14 +16,7 @@
           history.pushState({}, '', '#route-two');
           const out = document.getElementById('out');
           out.innerHTML = '<p>Loading…</p>';
-          // Keep the DOM mutating while "loading" (like a real SPA showing progress),
-          // so the recorder's quiet-window settle keeps resetting until the real content lands.
-          let ticks = 0;
-          const tick = setInterval(() => {
-            out.setAttribute('data-tick', String(ticks++));
-          }, 100);
           setTimeout(() => {
-            clearInterval(tick);
             out.innerHTML = '<div id="late" style="width:200px;height:100px;background:#00ff00"></div>';
           }, 700);
         });

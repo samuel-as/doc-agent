@@ -167043,6 +167043,16 @@ function buildInitScript() {
     if (window.__docAgentInstalled) return;
     window.__docAgentInstalled = true;
 
+    // Timestamp of the last DOM mutation, read by the recorder to decide when a page has
+    // finished rendering (SETTLE_EXPR in recorder.js). The observer lives here, installed
+    // with the script at document start, so nothing that happens before the recorder asks
+    // is missed.
+    window.__docAgentLastMutation = Date.now();
+    try {
+      new MutationObserver(() => { window.__docAgentLastMutation = Date.now(); })
+        .observe(document, { subtree: true, childList: true, attributes: true });
+    } catch (e) {}
+
     // Sensitive-field classifier, inlined from src/recorder/sensitivity.js (pure, self-contained).
     const sensitivityOf = (${createSensitivity.toString()})();
 
@@ -167267,7 +167277,8 @@ var init_instrument = __esm2({
 // src/recorder/recorder.js
 var recorder_exports = {};
 __export2(recorder_exports, {
-  Recorder: () => Recorder2
+  Recorder: () => Recorder2,
+  SETTLE_EXPR: () => SETTLE_EXPR
 });
 var NO_SCREENSHOT_KINDS, SETTLE_EXPR, SETTLE_NODE_CAP_MS, RECTS_EXPR, Recorder2;
 var init_recorder2 = __esm2({
@@ -167275,13 +167286,14 @@ var init_recorder2 = __esm2({
     init_instrument();
     NO_SCREENSHOT_KINDS = /* @__PURE__ */ new Set(["enter", "field-commit", "drag"]);
     SETTLE_EXPR = `new Promise((resolve) => {
-  const quiet = 300, cap = 1500;
-  let timer = null;
-  const done = () => { try { obs.disconnect(); } catch (e) {} resolve(true); };
-  const obs = new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(done, quiet); });
-  obs.observe(document, { subtree: true, childList: true, attributes: true });
-  timer = setTimeout(done, quiet);
-  setTimeout(done, cap);
+  const quiet = 300, cap = 1500, step = 50, t0 = Date.now();
+  const tick = () => {
+    const last = window.__docAgentLastMutation || 0;
+    if (Date.now() - t0 >= cap) return resolve(true);
+    if (last > t0 && Date.now() - last >= quiet) return resolve(true);
+    setTimeout(tick, step);
+  };
+  tick();
 })`;
     SETTLE_NODE_CAP_MS = 2e3;
     RECTS_EXPR = `(window.__docAgentSensitiveRects ? window.__docAgentSensitiveRects() : null)`;
@@ -167336,6 +167348,8 @@ var init_recorder2 = __esm2({
         };
         applySensitivity();
         await page.waitForLoadState("load", { timeout: 1e4 }).catch(() => {
+        });
+        await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => {
         });
         await this.settle(page);
         await page.evaluate(buildInitScript()).catch(() => {

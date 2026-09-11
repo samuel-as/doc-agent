@@ -8,6 +8,16 @@ export function buildInitScript() {
     if (window.__docAgentInstalled) return;
     window.__docAgentInstalled = true;
 
+    // Timestamp of the last DOM mutation, read by the recorder to decide when a page has
+    // finished rendering (SETTLE_EXPR in recorder.js). The observer lives here, installed
+    // with the script at document start, so nothing that happens before the recorder asks
+    // is missed.
+    window.__docAgentLastMutation = Date.now();
+    try {
+      new MutationObserver(() => { window.__docAgentLastMutation = Date.now(); })
+        .observe(document, { subtree: true, childList: true, attributes: true });
+    } catch (e) {}
+
     // Sensitive-field classifier, inlined from src/recorder/sensitivity.js (pure, self-contained).
     const sensitivityOf = (${createSensitivity.toString()})();
 

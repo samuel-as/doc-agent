@@ -3,16 +3,24 @@ import { BINDING, buildInitScript } from './instrument.js';
 
 const NO_SCREENSHOT_KINDS = new Set(['enter', 'field-commit', 'drag']);
 
-// Resolves when the DOM has been quiet for `quiet` ms, or after `cap` ms at most.
-// Covers SPA route changes, where 'load' is already true when framenavigated fires.
-const SETTLE_EXPR = `new Promise((resolve) => {
-  const quiet = 300, cap = 1500;
-  let timer = null;
-  const done = () => { try { obs.disconnect(); } catch (e) {} resolve(true); };
-  const obs = new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(done, quiet); });
-  obs.observe(document, { subtree: true, childList: true, attributes: true });
-  timer = setTimeout(done, quiet);
-  setTimeout(done, cap);
+// Resolves once the screen for the new URL has rendered AND the DOM has then been quiet
+// for `quiet` ms, or after `cap` ms at most. It reads __docAgentLastMutation, kept by the
+// persistent observer the injected script installs at document start: an observer created
+// here would only start watching after framenavigated -> load -> a round trip, missing
+// everything that happened in between.
+// A mutation AFTER the wait starts is what counts as "rendered": a page (or an SPA route)
+// that shows a spinner and paints 700 ms later is perfectly quiet in the meantime, and a
+// plain quiet window would capture the spinner. The price is that a page which renders
+// nothing after 'load' only resolves at the cap.
+export const SETTLE_EXPR = `new Promise((resolve) => {
+  const quiet = 300, cap = 1500, step = 50, t0 = Date.now();
+  const tick = () => {
+    const last = window.__docAgentLastMutation || 0;
+    if (Date.now() - t0 >= cap) return resolve(true);
+    if (last > t0 && Date.now() - last >= quiet) return resolve(true);
+    setTimeout(tick, step);
+  };
+  tick();
 })`;
 const SETTLE_NODE_CAP_MS = 2000; // if the page never answers, do not hang the recording
 
@@ -80,6 +88,9 @@ export class Recorder {
     };
     applySensitivity(); // protection applies right away to events arriving during the load
     await page.waitForLoadState('load', { timeout: 10_000 }).catch(() => {});
+    // A screen whose content arrives over the network is only worth capturing once the
+    // requests are done; the settle below then waits for it to be painted.
+    await page.waitForLoadState('networkidle', { timeout: 1500 }).catch(() => {});
     await this.settle(page);
     await page.evaluate(buildInitScript()).catch(() => {}); // re-instrument after the navigation
     // Fails CLOSED: if the page cannot answer (detached context, chrome:// page), assume a

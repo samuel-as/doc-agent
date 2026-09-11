@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BINDING, buildInitScript } from '../src/recorder/instrument.js';
-import { Recorder } from '../src/recorder/recorder.js';
+import { Recorder, SETTLE_EXPR } from '../src/recorder/recorder.js';
 
 test('the injected script contains the binding, the listeners and the reinstall guard', () => {
   const src = buildInitScript();
@@ -197,7 +197,7 @@ function fakeTab() {
     waitForLoadState: async () => {},
     evaluate: async (expr) => {
       const s = String(expr);
-      if (s.includes('MutationObserver')) { await new Promise((r) => setTimeout(r, tab._settleDelay)); return true; }
+      if (s.includes('__docAgentLastMutation')) { await new Promise((r) => setTimeout(r, tab._settleDelay)); return true; }
       if (s.includes('__docAgentSensitiveRects')) return tab._rects;
       if (s.includes('input[type="password"]')) {
         if (tab._probeThrows) throw new Error('execution context destroyed');
@@ -273,7 +273,8 @@ test('a click on the destination page during the load does not clear the URL pro
   await rec.onEvent(tab, { kind: 'click', ts: 1, hasPasswordField: true });
   tab._url = 'https://app.example.com/home?pwd=SECRET'; tab._hasPw = false;
   let releaseLoad;
-  tab.waitForLoadState = () => new Promise((r) => { releaseLoad = r; });
+  // only the 'load' wait is held open; the networkidle wait after it resolves at once
+  tab.waitForLoadState = (state) => (state === 'load' ? new Promise((r) => { releaseLoad = r; }) : Promise.resolve());
   const nav = rec.onNavigation(tab);
   await new Promise((r) => setTimeout(r, 5));
   await rec.onEvent(tab, { kind: 'click', ts: 2, sensitiveRects: [] });
@@ -343,4 +344,45 @@ test('a page whose password probe fails counts as a password screen (fail closed
   tab._url = 'https://app.example.com/home?token=SECRET';
   await rec.onNavigation(tab);
   assert.equal(calls[1].ev.url, 'https://app.example.com/home');
+});
+
+// Runs the page-side settle expression against a SIMULATED clock: setTimeout only moves
+// virtual time forward, so the contract (quiet window, cap) is measured without sleeping.
+// `mutationsAt` are the virtual timestamps at which the DOM mutates.
+async function settleAt(mutationsAt) {
+  let now = 0;
+  const timers = [];
+  const win = { __docAgentLastMutation: 0 };
+  const pending = [...mutationsAt];
+  const promise = new Function('window', 'Date', 'setTimeout', 'return ' + SETTLE_EXPR)(
+    win,
+    { now: () => now },
+    (fn, ms) => timers.push({ at: now + ms, fn }),
+  );
+  let resolvedAt = null;
+  promise.then(() => { resolvedAt = now; });
+  await Promise.resolve();
+  while (resolvedAt === null && timers.length) {
+    timers.sort((a, b) => a.at - b.at);
+    const t = timers.shift();
+    now = t.at;
+    while (pending.length && pending[0] <= now) win.__docAgentLastMutation = pending.shift();
+    t.fn();
+    await Promise.resolve();
+  }
+  return resolvedAt;
+}
+
+test('settle waits for the new screen to render and only then for the quiet window', async () => {
+  // A page (or SPA route) that shows a spinner and renders 700ms later is perfectly quiet
+  // in between: a plain quiet window would resolve at 300ms and capture the spinner.
+  assert.equal(await settleAt([700]), 1000);
+});
+
+test('settle keeps waiting while the DOM is still mutating', async () => {
+  assert.equal(await settleAt([100, 400, 600]), 900);
+});
+
+test('settle gives up at its cap when the page renders nothing at all', async () => {
+  assert.equal(await settleAt([]), 1500);
 });
