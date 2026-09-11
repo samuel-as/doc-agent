@@ -393,3 +393,15 @@ test('settle keeps waiting while the DOM is still mutating', async () => {
 test('settle gives up at its cap when the page renders nothing at all', async () => {
   assert.equal(await settleAt([]), 1500);
 });
+
+test('a navigation is timestamped when it happened, not when the settle finished', async () => {
+  const { calls, session } = fakes();
+  const rec = new Recorder(null, session);
+  const tab = fakeTab();
+  tab._url = 'https://app.example.com/home';
+  tab._settleDelay = 400; // the page takes a while to go quiet
+  const t0 = Date.now();
+  await rec.onNavigation(tab);
+  assert.ok(calls[0].ev.ts - t0 < 200,
+    `navigation ts is ${calls[0].ev.ts - t0}ms late: the settle must not push the step out of order`);
+});

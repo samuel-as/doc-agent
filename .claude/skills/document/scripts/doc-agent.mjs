@@ -167353,6 +167353,7 @@ var init_recorder2 = __esm2({
         ]);
       }
       async onNavigation(page) {
+        const ts = Date.now();
         const st2 = this._stateFor(page);
         const cameFromPassword = st2.hadPasswordField;
         const applySensitivity = () => {
@@ -167374,7 +167375,7 @@ var init_recorder2 = __esm2({
         const cap = await this.screenshot(page);
         await this.session.addEvent({
           kind: "navigation",
-          ts: Date.now(),
+          ts,
           url: this._safeUrl(page),
           title: await page.title().catch(() => null),
           label: null,

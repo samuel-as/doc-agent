@@ -79,6 +79,10 @@ export class Recorder {
     // synchronously in framenavigated, before any await: an event on the destination
     // page during loading must not clear the flag. Screenshots are no longer suppressed —
     // sensitive fields are painted over from the rects instead.
+    // Timestamped NOW, not after the waits below: the settle can hold this handler for
+    // seconds, and consolidate() orders the steps by ts — a late stamp would move the
+    // arrival on a screen after the actions the user took on it.
+    const ts = Date.now();
     const st = this._stateFor(page);
     const cameFromPassword = st.hadPasswordField;
     const applySensitivity = () => {
@@ -103,7 +107,7 @@ export class Recorder {
     applySensitivity(); // reapply with the final URL (redirects during the load)
     const cap = await this.screenshot(page);
     await this.session.addEvent({
-      kind: 'navigation', ts: Date.now(),
+      kind: 'navigation', ts,
       url: this._safeUrl(page), title: await page.title().catch(() => null),
       label: null, selector: null, isSensitive: false, sensitiveReason: null, isEditable: false,
       value: null, coords: null, sensitiveRects: cap.rects ?? [],
