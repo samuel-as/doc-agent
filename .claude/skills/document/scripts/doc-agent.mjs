@@ -166793,7 +166793,27 @@ async function drawMarker(inputPng, { x: x2, y: y2 }) {
   }
   return import_pngjs.PNG.sync.write(png);
 }
-var import_pngjs, RADIUS, STROKE, COLOR, FILL_ALPHA;
+async function drawRedaction(inputPng, rects) {
+  const png = import_pngjs.PNG.sync.read(inputPng);
+  const { width, height, data } = png;
+  for (const r of rects) {
+    const x0 = Math.max(0, Math.floor(r.x - REDACT_PAD));
+    const y0 = Math.max(0, Math.floor(r.y - REDACT_PAD));
+    const x1 = Math.min(width - 1, Math.ceil(r.x + r.w + REDACT_PAD) - 1);
+    const y1 = Math.min(height - 1, Math.ceil(r.y + r.h + REDACT_PAD) - 1);
+    for (let py = y0; py <= y1; py++) {
+      for (let px = x0; px <= x1; px++) {
+        const i = width * py + px << 2;
+        data[i] = REDACT.r;
+        data[i + 1] = REDACT.g;
+        data[i + 2] = REDACT.b;
+        data[i + 3] = 255;
+      }
+    }
+  }
+  return import_pngjs.PNG.sync.write(png);
+}
+var import_pngjs, RADIUS, STROKE, COLOR, FILL_ALPHA, REDACT, REDACT_PAD;
 var init_marker = __esm2({
   "src/recorder/marker.js"() {
     import_pngjs = __toESM2(require_png(), 1);
@@ -166801,6 +166821,8 @@ var init_marker = __esm2({
     STROKE = 4;
     COLOR = { r: 224, g: 36, b: 94 };
     FILL_ALPHA = 0.25;
+    REDACT = { r: 43, g: 43, b: 43 };
+    REDACT_PAD = 2;
   }
 });
 
@@ -166849,23 +166871,34 @@ var init_session2 = __esm2({
         for (const step of steps) {
           let finalShot = null;
           if (step.screenshot) {
-            finalShot = `shots/step-${String(step.index).padStart(3, "0")}.png`;
             let buf = await fs2.readFile(path2.join(this.dir, step.screenshot));
-            if (step.coords) {
+            let ok = true;
+            const rects = step.sensitiveRects ?? [];
+            if (rects.length) {
+              try {
+                buf = await drawRedaction(buf, rects);
+              } catch {
+                ok = false;
+              }
+            }
+            if (ok && step.coords) {
               try {
                 buf = await drawMarker(buf, step.coords);
               } catch {
               }
             }
-            await fs2.writeFile(path2.join(this.dir, finalShot), buf);
+            if (ok) {
+              finalShot = `shots/step-${String(step.index).padStart(3, "0")}.png`;
+              await fs2.writeFile(path2.join(this.dir, finalShot), buf);
+            }
           }
-          const { coords, screenshot: screenshot4, ...rest } = step;
+          const { coords, screenshot: screenshot4, sensitiveRects, ...rest } = step;
           finalSteps.push({ ...rest, screenshot: finalShot });
         }
         for (const f2 of await fs2.readdir(this.shotsDir)) {
           if (f2.startsWith("raw-")) await fs2.rm(path2.join(this.shotsDir, f2));
         }
-        const session2 = { name: this.name, createdAt: (/* @__PURE__ */ new Date()).toISOString(), steps: finalSteps };
+        const session2 = { schema: 2, name: this.name, createdAt: (/* @__PURE__ */ new Date()).toISOString(), steps: finalSteps };
         await fs2.writeFile(path2.join(this.dir, "session.json"), JSON.stringify(session2, null, 2));
         return this.dir;
       }

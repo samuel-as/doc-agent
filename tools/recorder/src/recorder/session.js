@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { consolidate } from './consolidate.js';
-import { drawMarker } from './marker.js';
+import { drawMarker, drawRedaction } from './marker.js';
 
 // Local-time stamp YYYY-MM-DD-HHMM: each recording gets its own folder, so earlier
 // takes of the same procedure are preserved.
@@ -45,20 +45,29 @@ export class SessionWriter {
     for (const step of steps) {
       let finalShot = null;
       if (step.screenshot) {
-        finalShot = `shots/step-${String(step.index).padStart(3, '0')}.png`;
         let buf = await fs.readFile(path.join(this.dir, step.screenshot));
-        if (step.coords) {
+        let ok = true;
+        const rects = step.sensitiveRects ?? [];
+        if (rects.length) {
+          // Privacy invariant: a screenshot with unredacted sensitive fields never reaches
+          // the disk. If painting fails, the step goes on without an image.
+          try { buf = await drawRedaction(buf, rects); } catch { ok = false; }
+        }
+        if (ok && step.coords) {
           try { buf = await drawMarker(buf, step.coords); } catch { /* a screenshot without the marker beats no screenshot */ }
         }
-        await fs.writeFile(path.join(this.dir, finalShot), buf);
+        if (ok) {
+          finalShot = `shots/step-${String(step.index).padStart(3, '0')}.png`;
+          await fs.writeFile(path.join(this.dir, finalShot), buf);
+        }
       }
-      const { coords, screenshot, ...rest } = step;
+      const { coords, screenshot, sensitiveRects, ...rest } = step;
       finalSteps.push({ ...rest, screenshot: finalShot });
     }
     for (const f of await fs.readdir(this.shotsDir)) {
       if (f.startsWith('raw-')) await fs.rm(path.join(this.shotsDir, f));
     }
-    const session = { name: this.name, createdAt: new Date().toISOString(), steps: finalSteps };
+    const session = { schema: 2, name: this.name, createdAt: new Date().toISOString(), steps: finalSteps };
     await fs.writeFile(path.join(this.dir, 'session.json'), JSON.stringify(session, null, 2));
     return this.dir;
   }

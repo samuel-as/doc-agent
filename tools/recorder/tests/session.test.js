@@ -16,8 +16,8 @@ function tinyPng() {
 function ev(kind, overrides = {}) {
   return {
     kind, ts: 1000, url: 'https://app.example.com/x', title: 'System X',
-    label: null, selector: null, isPassword: false, isEditable: false,
-    value: null, coords: null, ...overrides,
+    label: null, selector: null, isSensitive: false, sensitiveReason: null, isEditable: false,
+    value: null, coords: null, sensitiveRects: [], ...overrides,
   };
 }
 
@@ -77,4 +77,41 @@ test('a step with no screenshot ends up with screenshot null in the json', async
   const dir = await session.finalize();
   const json = JSON.parse(await fs.readFile(path.join(dir, 'session.json'), 'utf8'));
   assert.equal(json.steps[0].screenshot, null);
+});
+
+test('session.json carries schema 2 and steps do not expose internal fields', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
+  const session = new SessionWriter(path.join(root, 'docs', 'schema'), 'schema', NOW);
+  await session.init();
+  await session.addEvent(ev('click', { selector: '#a', coords: { x: 1, y: 1 }, sensitiveRects: [{ x: 0, y: 0, w: 5, h: 5, reason: 'otp' }] }), await tinyPng());
+  const dir = await session.finalize();
+  const json = JSON.parse(await fs.readFile(path.join(dir, 'session.json'), 'utf8'));
+  assert.equal(json.schema, 2);
+  assert.equal(json.steps[0].coords, undefined);
+  assert.equal(json.steps[0].sensitiveRects, undefined);
+  assert.equal(json.steps[0].isSensitive, false);
+});
+
+test('sensitive rects are painted over before the screenshot reaches the disk', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
+  const session = new SessionWriter(path.join(root, 'docs', 'redact'), 'redact', NOW);
+  await session.init();
+  await session.addEvent(ev('click', { selector: '#login', label: 'Sign in', sensitiveRects: [{ x: 10, y: 10, w: 20, h: 10, reason: 'password' }] }), await tinyPng());
+  const dir = await session.finalize();
+  const png = PNG.sync.read(await fs.readFile(path.join(dir, 'shots', 'step-001.png')));
+  const px = (x, y) => { const i = (png.width * y + x) << 2; return [png.data[i], png.data[i + 1], png.data[i + 2]]; };
+  assert.deepEqual(px(20, 15), [43, 43, 43]);   // inside the field: redacted
+  assert.deepEqual(px(45, 45), [255, 255, 255]); // elsewhere: untouched
+});
+
+test('when the redaction fails, the step keeps no screenshot at all', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
+  const session = new SessionWriter(path.join(root, 'docs', 'redact-fail'), 'redact-fail', NOW);
+  await session.init();
+  // an invalid PNG buffer makes drawRedaction throw; the raw must not survive as a final shot
+  await session.addEvent(ev('click', { selector: '#login', sensitiveRects: [{ x: 1, y: 1, w: 2, h: 2, reason: 'password' }] }), Buffer.from('not-a-png'));
+  const dir = await session.finalize();
+  const json = JSON.parse(await fs.readFile(path.join(dir, 'session.json'), 'utf8'));
+  assert.equal(json.steps[0].screenshot, null);
+  assert.deepEqual(await fs.readdir(path.join(dir, 'shots')), []);
 });
