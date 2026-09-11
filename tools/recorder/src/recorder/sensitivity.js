@@ -8,7 +8,9 @@ export function createSensitivity() {
   const norm = (s) => String(s ?? '')
     .toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // keep the \u escapes: this source is inlined into the page script
-    .replace(/[_\-.\s]+/g, ' ')
+    // Everything that is not a letter or a digit becomes a separator, so a label
+    // written "Telefone:", "CPF*" or "(11) Celular" still matches the word lists below.
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
   const words = (list) => new RegExp('(^| )(' + list.join('|') + ')( |$)');
 

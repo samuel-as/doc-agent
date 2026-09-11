@@ -69,3 +69,11 @@ test('the factory is self-contained: it survives toString() + eval in a bare sco
   assert.equal(rebuilt(f({ name: 'senha' })), 'password');
   assert.equal(rebuilt(f({ name: 'reason', value: 'ok' })), null);
 });
+
+test('labels with trailing punctuation still match: "Telefone:", "Senha:", "CPF*"', () => {
+  assert.equal(sensitivityOf(f({ labelText: 'Telefone:' })), 'phone');
+  assert.equal(sensitivityOf(f({ type: 'text', labelText: 'Senha:' })), 'password');
+  assert.equal(sensitivityOf(f({ labelText: 'CPF*' })), 'document');
+  assert.equal(sensitivityOf(f({ labelText: '(11) Celular' })), 'phone');
+  assert.equal(sensitivityOf(f({ labelText: 'Passenger name:' })), null); // still whole words only
+});

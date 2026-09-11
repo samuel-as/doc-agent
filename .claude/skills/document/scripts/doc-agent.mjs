@@ -166920,7 +166920,7 @@ var init_session2 = __esm2({
 // src/recorder/sensitivity.js
 function createSensitivity() {
   const splitCamel = (s) => String(s ?? "").replace(/([a-z])([A-Z])/g, "$1 $2");
-  const norm = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[_\-.\s]+/g, " ").trim();
+  const norm = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   const words = (list) => new RegExp("(^| )(" + list.join("|") + ")( |$)");
   const PASSWORD = words(["senha", "password", "passwd", "pwd", "pass", "contrasena", "kennwort", "mot de passe"]);
   const OTP = words([
