@@ -236,3 +236,17 @@ test('the raw child-frame marker does not reach the step', () => {
   const steps = consolidate([ev('click', { selector: '#a', frame: 'child' })]);
   assert.equal(steps[0].frame, undefined);
 });
+
+test('a fill done with the mouse keeps its scrolled flag: the focusin right after must not clear it', () => {
+  const steps = consolidate([
+    ev('click', { selector: '#a', ts: 1000, scrollY: 0, viewportH: 800 }),
+    // Chrome fires focusin right after the mousedown, with the same scroll position
+    ev('click', { selector: '#f', isEditable: true, ts: 2000, scrollY: 1500, viewportH: 800, screenshot: 'shots/raw-002.png', coords: { x: 5, y: 6 } }),
+    ev('field-focus', { selector: '#f', ts: 2010, scrollY: 1500, viewportH: 800 }),
+    ev('field-commit', { selector: '#f', ts: 2500, value: 'typed' }),
+  ]);
+  const fill = steps.find((s) => s.type === 'fill');
+  assert.equal(fill.scrolled, true);
+  assert.equal(fill.screenshot, 'shots/raw-002.png'); // the click's capture, not the focus's
+  assert.deepEqual(fill.coords, { x: 5, y: 6 });
+});

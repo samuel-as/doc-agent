@@ -164576,10 +164576,21 @@ function consolidate(events) {
   };
   for (const ev of events) {
     switch (ev.kind) {
-      case "field-focus":
-        focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev) });
+      case "field-focus": {
+        const prev = focusBySelector.get(ev.selector);
+        const scrolled = scrolledFlag(ev);
+        const sameInteraction = prev && Math.abs(ev.ts - prev.ts) < CLICK_DEDUP_MS;
+        const shotFrom = sameInteraction && prev.screenshot ? prev : ev;
+        focusBySelector.set(ev.selector, {
+          ...ev,
+          scrolled: sameInteraction ? scrolled || prev.scrolled : scrolled,
+          screenshot: shotFrom.screenshot,
+          coords: shotFrom.coords,
+          sensitiveRects: shotFrom.sensitiveRects
+        });
         lastCommitBySelector.delete(ev.selector);
         break;
+      }
       case "click": {
         if (ev.isEditable) {
           focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev) });

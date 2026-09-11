@@ -30,10 +30,26 @@ export function consolidate(events) {
 
   for (const ev of events) {
     switch (ev.kind) {
-      case 'field-focus':
-        focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev) });
+      case 'field-focus': {
+        // Chrome fires focusin right after the mousedown on the same field. The click
+        // already computed `scrolled` and carries the screenshot/coords; by then the
+        // scroll position is identical, so the focus on its own computes false and used
+        // to overwrite the click's entry. Inside the dedup window the two events are one
+        // interaction, so the flag and the capture are kept.
+        const prev = focusBySelector.get(ev.selector);
+        const scrolled = scrolledFlag(ev);
+        const sameInteraction = prev && Math.abs(ev.ts - prev.ts) < CLICK_DEDUP_MS;
+        const shotFrom = sameInteraction && prev.screenshot ? prev : ev;
+        focusBySelector.set(ev.selector, {
+          ...ev,
+          scrolled: sameInteraction ? scrolled || prev.scrolled : scrolled,
+          screenshot: shotFrom.screenshot,
+          coords: shotFrom.coords,
+          sensitiveRects: shotFrom.sensitiveRects,
+        });
         lastCommitBySelector.delete(ev.selector); // new focus: a real re-edit may legitimately repeat the value
         break;
+      }
 
       case 'click': {
         if (ev.isEditable) {
