@@ -167167,6 +167167,10 @@ function buildInitScript() {
       return null;
     };
 
+    // Keyboard events with nothing focused land on document.body, and labelFor(body) is
+    // 80 characters of the page text \u2014 not a label. Only a real control names a step.
+    const focusTarget = (el) => (el && (isEditable(el) || interactiveFrom(el)) ? el : null);
+
     document.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
       const el = interactiveFrom(target(e));
@@ -167207,7 +167211,7 @@ function buildInitScript() {
         // no partial commit and no 'enter' event.
         if (t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
         if (isEditable(t)) commit(t);
-        send({ ...base('enter', t), selector: null });
+        send({ ...base('enter', focusTarget(t)), selector: null });
         return;
       }
       if (!(e.ctrlKey || e.altKey || e.metaKey)) return;
@@ -167217,7 +167221,7 @@ function buildInitScript() {
       if (!/^[A-Z0-9]$/.test(k) && !/^F([1-9]|1[0-2])$/.test(k)) return;
       const combo = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Cmd']
         .filter(Boolean).concat(k).join('+');
-      send({ ...base('shortcut', t), value: combo });
+      send({ ...base('shortcut', focusTarget(t)), value: combo });
     }, true);
 
     document.addEventListener('change', (e) => {

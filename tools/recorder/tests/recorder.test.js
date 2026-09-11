@@ -42,6 +42,14 @@ test('keydown: Enter ignores TEXTAREA/contenteditable; shortcuts skip copy/paste
   assert.ok(body.includes("['C','V','A','Z']"), 'copy/paste/select-all/undo exclusion missing');
 });
 
+test('shortcut and enter carry no label when nothing interactive is focused', () => {
+  const src = buildInitScript();
+  assert.ok(src.includes('const focusTarget'), 'focusTarget guard missing');
+  const keydown = src.slice(src.indexOf("addEventListener('keydown'"));
+  assert.ok(keydown.includes("base('shortcut', focusTarget(t))"), 'shortcut must go through focusTarget');
+  assert.ok(keydown.includes("base('enter', focusTarget(t))"), 'enter must go through focusTarget');
+});
+
 test('the injected script embeds the sensitivity classifier and it runs in a bare scope', () => {
   const src = buildInitScript();
   assert.ok(src.includes('function sensitivityOf'), 'classifier not inlined');

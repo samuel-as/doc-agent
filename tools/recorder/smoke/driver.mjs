@@ -78,7 +78,8 @@ if (mode === 'security') {
   await page.click('#notes'); await page.fill('#notes', NOTES_CPF);
   await page.selectOption('#type', 'Request');
   await page.click('#urgent');
-  await page.keyboard.press('Control+S');
+  await page.click('h1'); // plain text: no step, and focus goes back to <body>
+  await page.keyboard.press('Control+S'); // pressed with nothing focused: the step must have no label
   await page.dragAndDrop('#item-a', '#done');
   await page.click('#submit'); // below a 2000px spacer: playwright scrolls, the recorder must flag it
   await page.waitForLoadState('load');
@@ -157,7 +158,9 @@ if (mode === 'security') {
   const chk = session.steps.find((s) => s.type === 'check');
   check(chk?.value === 'on' && chk?.label === 'Urgent', `check step wrong: ${JSON.stringify(chk)}`);
   check(!session.steps.some((s) => s.type === 'click' && s.selector === '#urgent'), 'the checkbox must not ALSO produce a click step');
-  check(session.steps.some((s) => s.type === 'shortcut' && s.value === 'Ctrl+S'), 'Ctrl+S shortcut missing');
+  const shortcut = session.steps.find((s) => s.type === 'shortcut' && s.value === 'Ctrl+S');
+  check(!!shortcut, 'Ctrl+S shortcut missing');
+  check(shortcut?.label === null, `a shortcut pressed with nothing focused must have label null: ${JSON.stringify(shortcut)}`);
   const drag = session.steps.find((s) => s.type === 'drag');
   check(drag?.label === 'Task A' && String(drag?.target).startsWith('Done'), `drag step wrong: ${JSON.stringify(drag)}`);
   const submit = session.steps.find((s) => s.type === 'click' && s.selector === '#submit');
