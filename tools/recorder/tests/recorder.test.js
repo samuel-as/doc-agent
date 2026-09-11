@@ -24,6 +24,15 @@ test('labelFor does not fall back to el.value outside button/submit/reset inputs
   assert.ok(src.includes("['button','submit','reset']"), 'button/submit/reset guard missing');
 });
 
+test('labelFor never uses the innerText of a contenteditable: that IS the typed value', () => {
+  const src = buildInitScript();
+  const body = src.slice(src.indexOf('const labelFor'), src.indexOf('const cssPath'));
+  const guard = body.indexOf('el.isContentEditable');
+  const innerText = body.indexOf('el.innerText');
+  assert.ok(guard >= 0, 'contenteditable guard missing in labelFor');
+  assert.ok(guard < innerText, 'the guard must come before the innerText fallback');
+});
+
 test('keydown: Enter ignores TEXTAREA/contenteditable; shortcuts skip copy/paste/select-all/undo', () => {
   const src = buildInitScript();
   const keydownIdx = src.indexOf("addEventListener('keydown'");

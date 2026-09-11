@@ -25,6 +25,9 @@ const SENTINELS = {
   pwd: 'PASSWORD-SENTINEL-123', otp: '917364', card: '4111111111111111',
   cpf: '52998224725', phone: '11987654321', ticket: 'TICKET-778899',
 };
+// A valid CPF typed into a contenteditable: sensitive by value alone, and its text must
+// not reach session.json through the step label either.
+const NOTES_CPF = '111.444.777-35';
 
 const bundle = path.join(repoRoot, '.claude', 'skills', 'document', 'scripts', 'doc-agent.mjs');
 const procDir = path.join(repoRoot, 'docs', name);
@@ -72,6 +75,7 @@ if (mode === 'security') {
   await page.goto(fileUrl(path.join(here, 'fixtures', 'form.html')));
   await page.click('#reason'); await page.fill('#reason', 'test ticket');
   await page.click('#detail'); await page.fill('#detail', 'two lines');
+  await page.click('#notes'); await page.fill('#notes', NOTES_CPF);
   await page.selectOption('#type', 'Request');
   await page.click('#urgent');
   await page.keyboard.press('Control+S');
@@ -144,7 +148,11 @@ if (mode === 'security') {
   const fills = session.steps.filter((s) => s.type === 'fill');
   check(fills.some((s) => s.value === 'test ticket'), 'fill of Reason missing');
   check(fills.some((s) => s.value === 'two lines'), 'fill of Detail missing');
-  check(fills.length === 2, `expected 2 fills, got ${fills.length} (dedup broken?)`);
+  check(fills.length === 3, `expected 3 fills, got ${fills.length} (dedup broken?)`);
+  check(!raw.includes(NOTES_CPF), 'THE CONTENTEDITABLE CPF LEAKED into session.json');
+  const notes = session.steps.find((s) => s.selector === '#notes');
+  check(notes?.type === 'fill' && notes?.isSensitive === true && notes?.value === null && notes?.label === null,
+    `the contenteditable step must be sensitive and unlabelled: ${JSON.stringify(notes)}`);
   check(session.steps.some((s) => s.type === 'select' && s.value === 'Request'), 'select missing');
   const chk = session.steps.find((s) => s.type === 'check');
   check(chk?.value === 'on' && chk?.label === 'Urgent', `check step wrong: ${JSON.stringify(chk)}`);

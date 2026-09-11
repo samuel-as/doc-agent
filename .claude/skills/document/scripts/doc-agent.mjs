@@ -167080,6 +167080,9 @@ function buildInitScript() {
         const v = el.getAttribute(attr);
         if (v && v.trim()) return v.trim().slice(0, 80);
       }
+      // In a contenteditable, innerText IS the content the user typed: commit() masks the
+      // value of a sensitive field, and reading it here would ship the same text as label.
+      if (el.isContentEditable) return null;
       // el.value only works as a label on button-like inputs (<input type="submit" value="...">);
       // never on editable fields \u2014 otherwise the typed value (a password, even) becomes the label.
       const isButtonLike = el.tagName === 'INPUT' &&
