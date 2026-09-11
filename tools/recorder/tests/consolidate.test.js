@@ -231,3 +231,8 @@ test('steps do not expose scrollY/viewportH/isEditable', () => {
   const [s] = consolidate([ev('click', { selector: '#a', scrollY: 10, viewportH: 800, isEditable: false })]);
   assert.ok(!('scrollY' in s) && !('viewportH' in s) && !('isEditable' in s));
 });
+
+test('the raw child-frame marker does not reach the step', () => {
+  const steps = consolidate([ev('click', { selector: '#a', frame: 'child' })]);
+  assert.equal(steps[0].frame, undefined);
+});

@@ -40,7 +40,7 @@ export class Recorder {
 
   async start() {
     await this.context.exposeBinding(BINDING, (source, payloadJson) => {
-      return this.onEvent(source.page, JSON.parse(payloadJson)).catch(() => {});
+      return this.onEvent(source.page, JSON.parse(payloadJson), source.frame).catch(() => {});
     });
     await this.context.addInitScript(buildInitScript());
     for (const page of this.context.pages()) await this.attach(page);
@@ -96,11 +96,18 @@ export class Recorder {
     }, cap.buf);
   }
 
-  async onEvent(page, payload) {
+  async onEvent(page, payload, frame = null) {
     const ev = { ...payload };
     const payloadRects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
     this._stateFor(page).hadPasswordField = payloadRects.some((r) => r.reason === 'password');
-    const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind);
+    // addInitScript and exposeBinding run in EVERY frame, but a rect measured inside an
+    // iframe is relative to the IFRAME viewport: painted on the screenshot of the whole
+    // page it would blank the wrong area and leave the real field readable. So a
+    // child-frame event gets no image. TODO: translate the coordinates with the offset of
+    // frame.frameElement() and capture these too. page.evaluate (RECTS_EXPR, the settle)
+    // always runs in the main frame, so navigation captures are unaffected.
+    const inChildFrame = !!frame && typeof page.mainFrame === 'function' && frame !== page.mainFrame();
+    const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind) && !inChildFrame;
     // The rects stored with the event are the ones measured inside _capture, right before
     // the pixels — the ones in the payload were measured when the event fired and the
     // capture queue may only get to this page seconds later.
@@ -109,6 +116,7 @@ export class Recorder {
       isSensitive: false, sensitiveReason: null, isEditable: false, value: null, coords: null,
       label: null, selector: null,
       ...ev,
+      ...(inChildFrame ? { frame: 'child' } : null),
       sensitiveRects: cap?.rects ?? [],
       url: this._safeUrl(page),
       title: await page.title().catch(() => null),

@@ -112,6 +112,26 @@ test('an event whose page cannot report its rects gets no screenshot (privacy fi
   assert.deepEqual(calls[0].ev.sensitiveRects, []);
 });
 
+test('an event from a child frame gets no screenshot: its rects are relative to the iframe', async () => {
+  const { calls, session, page } = fakes();
+  page._rects = PW_RECTS;
+  page.mainFrame = () => 'main';
+  const rec = new Recorder(null, session);
+  await rec.onEvent(page, { kind: 'click', ts: 1, label: 'Save' }, 'inner');
+  assert.equal(calls[0].shot, null);
+  assert.equal(calls[0].ev.frame, 'child'); // raw marker; the consolidation drops it
+  assert.equal(calls[0].ev.label, 'Save'); // the step itself is still recorded
+});
+
+test('an event from the main frame is captured as usual', async () => {
+  const { calls, session, page } = fakes();
+  page.mainFrame = () => 'main';
+  const rec = new Recorder(null, session);
+  await rec.onEvent(page, { kind: 'click', ts: 1 }, 'main');
+  assert.ok(Buffer.isBuffer(calls[0].shot));
+  assert.ok(!('frame' in calls[0].ev));
+});
+
 test('an event without sensitiveRects gets an empty list (never undefined) and no leftover fields', async () => {
   const { calls, session, page } = fakes();
   const rec = new Recorder(null, session);

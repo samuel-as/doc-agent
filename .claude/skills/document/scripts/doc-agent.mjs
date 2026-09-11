@@ -167292,7 +167292,7 @@ var init_recorder2 = __esm2({
       }
       async start() {
         await this.context.exposeBinding(BINDING, (source12, payloadJson) => {
-          return this.onEvent(source12.page, JSON.parse(payloadJson)).catch(() => {
+          return this.onEvent(source12.page, JSON.parse(payloadJson), source12.frame).catch(() => {
           });
         });
         await this.context.addInitScript(buildInitScript());
@@ -167349,11 +167349,12 @@ var init_recorder2 = __esm2({
           sensitiveRects: cap.rects ?? []
         }, cap.buf);
       }
-      async onEvent(page, payload) {
+      async onEvent(page, payload, frame = null) {
         const ev = { ...payload };
         const payloadRects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
         this._stateFor(page).hadPasswordField = payloadRects.some((r) => r.reason === "password");
-        const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind);
+        const inChildFrame = !!frame && typeof page.mainFrame === "function" && frame !== page.mainFrame();
+        const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind) && !inChildFrame;
         const cap = wantsShot ? await this.screenshot(page) : null;
         await this.session.addEvent({
           isSensitive: false,
@@ -167364,6 +167365,7 @@ var init_recorder2 = __esm2({
           label: null,
           selector: null,
           ...ev,
+          ...inChildFrame ? { frame: "child" } : null,
           sensitiveRects: cap?.rects ?? [],
           url: this._safeUrl(page),
           title: await page.title().catch(() => null)

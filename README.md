@@ -120,8 +120,10 @@ personal data:
   completes at the end of the recording; if the process crashes or is killed before that
   cleanup runs, unredacted raw files may remain on disk under `sessions/.../shots/`.
 - **Known redaction gaps:** detection only scans the light DOM of the top frame plus the
-  element actually interacted with — a sensitive field inside an iframe, or a sensitive
-  field in a shadow root that isn't the one being interacted with, may not be redacted.
+  element actually interacted with — a sensitive field in a shadow root that isn't the one
+  being interacted with may not be redacted. An action **inside an iframe gets no
+  screenshot**: its coordinates are relative to the iframe, so a box painted from them
+  would cover the wrong area of the page; the step is recorded without an image.
   `contenteditable` elements have their sensitive values excluded from the recording the
   same as `<input>`/`<textarea>`, but are not currently painted over in screenshots.
 - **A navigation leaving a password screen** has its URL recorded without `query` or
