@@ -17,8 +17,9 @@ versions follow [SemVer](https://semver.org).
 - Sensitive-field detection beyond `type=password`: `autocomplete` tokens, multilingual
   field names (Portuguese included), CPF/CNPJ check digits and Luhn for cards. Values are
   never stored; fields are painted over in screenshots.
-- After a navigation the recorder waits for the DOM to go quiet (300 ms, cap 1.5 s), so SPA
-  route changes are captured after they render.
+- After a navigation the recorder waits for the new screen to be painted and the DOM to go
+  quiet (300 ms, cap 1.5 s), so a page or an SPA route that renders late is captured with
+  its content instead of with its spinner.
 - `session.json` now declares `"schema": 2`; `isPassword` became `isSensitive` +
   `sensitiveReason`.
 - New smoke `npm run smoke:dynamic` (shadow DOM + SPA settle); security smoke covers every
@@ -28,6 +29,20 @@ versions follow [SemVer](https://semver.org).
 
 - **Screens with a password field now get screenshots**, with the sensitive fields redacted.
   Previously the whole screenshot was suppressed.
+
+### Fixed
+
+- Privacy holes in the recorder: the redaction boxes are measured at the moment of the
+  capture (they used to travel in the event and could be painted over a screen that had
+  already changed); an action inside an iframe gets no screenshot at all, since its
+  coordinates are relative to the iframe; every capture is redacted before it reaches the
+  disk, including the temporary one, which used to be written in the clear until the end of
+  the recording; the shortened URL after a login no longer depends on the password field
+  being visible; labels written `Telefone:` or `CPF*` are detected; the text typed into a
+  `contenteditable` is never used as the step label; and a shortcut pressed with nothing
+  focused no longer takes the page text as its label.
+- `scrolled` survives a fill started with a click (the focus event right after used to
+  clear it), and a sensitive field left empty no longer produces a "fill in" step.
 
 ## [0.2.1] — 2026-09-04
 
