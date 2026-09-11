@@ -1,4 +1,6 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Demo Form</title></head>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Demo Form</title>
+<style>#done { border: 2px dashed #888; padding: 12px; margin: 8px 0; } .spacer { height: 2000px; }</style>
+</head>
 <body>
   <h1>Open a Ticket (demo)</h1>
   <form action="ok.html" method="get">
@@ -7,6 +9,22 @@
     <p><label for="type">Type</label>
       <select id="type" name="type"><option>Incident</option><option>Request</option></select></p>
     <p><label><input type="checkbox" id="urgent" name="urgent"> Urgent</label></p>
+    <p id="saved"></p>
+    <ul id="queue"><li id="item-a" draggable="true">Task A</li><li id="item-b" draggable="true">Task B</li></ul>
+    <div id="done">Done</div>
+    <div class="spacer"></div>
     <p><button id="submit" type="submit">Submit ticket</button></p>
   </form>
+  <script>
+    // Ctrl+S: "save draft" — prevented so Chrome's save dialog never opens during the smoke.
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); document.getElementById('saved').textContent = 'draft saved'; }
+    });
+    const done = document.getElementById('done');
+    done.addEventListener('dragover', (e) => e.preventDefault());
+    done.addEventListener('drop', (e) => { e.preventDefault(); done.textContent = 'Done: ' + (e.dataTransfer.getData('text') || 'item'); });
+    for (const li of document.querySelectorAll('#queue li')) {
+      li.addEventListener('dragstart', (e) => e.dataTransfer.setData('text', li.textContent));
+    }
+  </script>
 </body></html>
