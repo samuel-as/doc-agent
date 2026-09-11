@@ -47,8 +47,10 @@ function fakes() {
   const calls = [];
   const session = { addEvent: async (ev, shot) => calls.push({ ev, shot }) };
   const page = {
+    _rects: [], // what the page answers when the recorder measures the rects for a capture
     url: () => 'https://app.example.com/x',
     title: async () => 'System X',
+    evaluate: async () => page._rects,
     screenshot: async () => Buffer.from('fake-png'),
   };
   return { calls, session, page };
@@ -72,10 +74,42 @@ test('takes a screenshot for click, field-focus, check, shortcut, drag-start; ne
 
 test('a page with a password field STILL gets a screenshot (redaction happens later, from the rects)', async () => {
   const { calls, session, page } = fakes();
+  page._rects = PW_RECTS;
   const rec = new Recorder(null, session);
-  await rec.onEvent(page, { kind: 'click', ts: 1, sensitiveRects: PW_RECTS, coords: { x: 1, y: 2 } });
+  await rec.onEvent(page, { kind: 'click', ts: 1, coords: { x: 1, y: 2 } });
   assert.ok(Buffer.isBuffer(calls[0].shot));
   assert.deepEqual(calls[0].ev.sensitiveRects, PW_RECTS);
+});
+
+// The rects must describe the screen AT THE MOMENT OF THE CAPTURE: they are measured in
+// _capture, right before page.screenshot(), never when the event fired — the capture queue
+// can lag seconds behind the mousedown that produced the event, and boxes measured then
+// would be painted over whatever moved in the meantime.
+function pageWithRects(rects) {
+  return {
+    url: () => 'https://app.example.com/x',
+    title: async () => 'System X',
+    evaluate: async () => rects,
+    screenshot: async () => Buffer.from('fake-png'),
+  };
+}
+
+test('the recorded rects are the ones measured at capture time, not the ones from the payload', async () => {
+  const { calls, session } = fakes();
+  const atCapture = [{ x: 80, y: 200, w: 120, h: 24, reason: 'password' }];
+  const rec = new Recorder(null, session);
+  await rec.onEvent(pageWithRects(atCapture), { kind: 'click', ts: 1, sensitiveRects: PW_RECTS });
+  assert.deepEqual(calls[0].ev.sensitiveRects, atCapture);
+});
+
+test('an event whose page cannot report its rects gets no screenshot (privacy first)', async () => {
+  const { calls, session } = fakes();
+  const page = pageWithRects(null);
+  page.evaluate = async () => { throw new Error('cannot evaluate here'); };
+  const rec = new Recorder(null, session);
+  await rec.onEvent(page, { kind: 'click', ts: 1, sensitiveRects: PW_RECTS });
+  assert.equal(calls[0].shot, null);
+  assert.deepEqual(calls[0].ev.sensitiveRects, []);
 });
 
 test('an event without sensitiveRects gets an empty list (never undefined) and no leftover fields', async () => {
@@ -95,6 +129,7 @@ test('screenshot captures are serialized: the next one only starts when the prev
   let n = 0;
   const page = {
     url: () => 'https://x', title: async () => 'X',
+    evaluate: async () => [],
     screenshot: async () => {
       const id = ++n;
       log.push(`start-${id}`);
@@ -233,6 +268,7 @@ test('a screenshot failure does not drop the event (shot null)', async () => {
   const { calls, session } = fakes();
   const page = {
     url: () => 'https://x', title: async () => 'X',
+    evaluate: async () => [],
     screenshot: async () => { throw new Error('page closed'); },
   };
   const rec = new Recorder(null, session);

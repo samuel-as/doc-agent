@@ -167333,8 +167333,7 @@ var init_recorder2 = __esm2({
         const hasPw = await page.evaluate(`!!document.querySelector('input[type="password"]')`).catch(() => false);
         st2.hadPasswordField = hasPw;
         applySensitivity();
-        const rects = await page.evaluate(RECTS_EXPR).catch(() => null);
-        const shot = Array.isArray(rects) ? await this.screenshot(page) : null;
+        const cap = await this.screenshot(page);
         await this.session.addEvent({
           kind: "navigation",
           ts: Date.now(),
@@ -167347,15 +167346,15 @@ var init_recorder2 = __esm2({
           isEditable: false,
           value: null,
           coords: null,
-          sensitiveRects: Array.isArray(rects) ? rects : []
-        }, shot);
+          sensitiveRects: cap.rects ?? []
+        }, cap.buf);
       }
       async onEvent(page, payload) {
         const ev = { ...payload };
-        const rects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
-        this._stateFor(page).hadPasswordField = rects.some((r) => r.reason === "password");
+        const payloadRects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
+        this._stateFor(page).hadPasswordField = payloadRects.some((r) => r.reason === "password");
         const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind);
-        const shot = wantsShot ? await this.screenshot(page) : null;
+        const cap = wantsShot ? await this.screenshot(page) : null;
         await this.session.addEvent({
           isSensitive: false,
           sensitiveReason: null,
@@ -167365,10 +167364,10 @@ var init_recorder2 = __esm2({
           label: null,
           selector: null,
           ...ev,
-          sensitiveRects: rects,
+          sensitiveRects: cap?.rects ?? [],
           url: this._safeUrl(page),
           title: await page.title().catch(() => null)
-        }, shot);
+        }, cap?.buf ?? null);
       }
       // Strips query/hash from the URL when THIS tab was reached from a password
       // screen (see onNavigation) — credentials never reach session.json.
@@ -167383,17 +167382,24 @@ var init_recorder2 = __esm2({
       // commit leaves Chrome unresponsive until the 3s timeout) ate the budget of every
       // capture waiting in line and they all came back null. Chaining them here, each
       // capture only calls page.screenshot() with its full budget.
+      // Resolves to { buf, rects }: the pixels and the sensitive boxes that describe THEM.
       screenshot(page) {
         const shot = this._shotChain.then(() => this._capture(page));
         this._shotChain = shot;
         return shot;
       }
       async _capture(page) {
+        let rects = null;
         try {
-          return await page.screenshot({ scale: "css", timeout: 3e3 });
+          rects = await page.evaluate(RECTS_EXPR);
+        } catch {
+        }
+        if (!Array.isArray(rects)) return { buf: null, rects: null };
+        try {
+          return { buf: await page.screenshot({ scale: "css", timeout: 3e3 }), rects };
         } catch (e) {
           if (process.env.DOC_AGENT_DEBUG) console.error("DEBUG screenshot failed:", e);
-          return null;
+          return { buf: null, rects };
         }
       }
     };

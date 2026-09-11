@@ -87,32 +87,32 @@ export class Recorder {
       .catch(() => false);
     st.hadPasswordField = hasPw;
     applySensitivity(); // reapply with the final URL (redirects during the load)
-    // Rects come BEFORE the screenshot so they describe the same screen state. If the
-    // page cannot report them, no screenshot: an unredacted field must never be saved.
-    const rects = await page.evaluate(RECTS_EXPR).catch(() => null);
-    const shot = Array.isArray(rects) ? await this.screenshot(page) : null;
+    const cap = await this.screenshot(page);
     await this.session.addEvent({
       kind: 'navigation', ts: Date.now(),
       url: this._safeUrl(page), title: await page.title().catch(() => null),
       label: null, selector: null, isSensitive: false, sensitiveReason: null, isEditable: false,
-      value: null, coords: null, sensitiveRects: Array.isArray(rects) ? rects : [],
-    }, shot);
+      value: null, coords: null, sensitiveRects: cap.rects ?? [],
+    }, cap.buf);
   }
 
   async onEvent(page, payload) {
     const ev = { ...payload };
-    const rects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
-    this._stateFor(page).hadPasswordField = rects.some((r) => r.reason === 'password');
+    const payloadRects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
+    this._stateFor(page).hadPasswordField = payloadRects.some((r) => r.reason === 'password');
     const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind);
-    const shot = wantsShot ? await this.screenshot(page) : null;
+    // The rects stored with the event are the ones measured inside _capture, right before
+    // the pixels — the ones in the payload were measured when the event fired and the
+    // capture queue may only get to this page seconds later.
+    const cap = wantsShot ? await this.screenshot(page) : null;
     await this.session.addEvent({
       isSensitive: false, sensitiveReason: null, isEditable: false, value: null, coords: null,
       label: null, selector: null,
       ...ev,
-      sensitiveRects: rects,
+      sensitiveRects: cap?.rects ?? [],
       url: this._safeUrl(page),
       title: await page.title().catch(() => null),
-    }, shot);
+    }, cap?.buf ?? null);
   }
 
   // Strips query/hash from the URL when THIS tab was reached from a password
@@ -129,6 +129,7 @@ export class Recorder {
   // commit leaves Chrome unresponsive until the 3s timeout) ate the budget of every
   // capture waiting in line and they all came back null. Chaining them here, each
   // capture only calls page.screenshot() with its full budget.
+  // Resolves to { buf, rects }: the pixels and the sensitive boxes that describe THEM.
   screenshot(page) {
     const shot = this._shotChain.then(() => this._capture(page));
     this._shotChain = shot; // _capture never rejects, so the chain never breaks
@@ -136,11 +137,19 @@ export class Recorder {
   }
 
   async _capture(page) {
+    // Rects are measured HERE, immediately before the pixels, so the boxes and the image
+    // describe the same screen. If the page cannot report them, there is no screenshot at
+    // all: an unredacted sensitive field must never reach the disk.
+    let rects = null;
     try {
-      return await page.screenshot({ scale: 'css', timeout: 3000 });
+      rects = await page.evaluate(RECTS_EXPR);
+    } catch { /* no init script in this document (chrome://, closed tab) */ }
+    if (!Array.isArray(rects)) return { buf: null, rects: null };
+    try {
+      return { buf: await page.screenshot({ scale: 'css', timeout: 3000 }), rects };
     } catch (e) {
       if (process.env.DOC_AGENT_DEBUG) console.error('DEBUG screenshot failed:', e);
-      return null; // screenshot failed: the step goes on without an image
+      return { buf: null, rects }; // screenshot failed: the step goes on without an image
     }
   }
 }
