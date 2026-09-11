@@ -106,6 +106,10 @@ export function buildInitScript() {
       label: el ? labelFor(el) : null, selector: el ? cssPath(el) : null,
       scrollY: window.scrollY, viewportH: window.innerHeight,
       sensitiveRects: sensitiveRects(el),
+      // Drives the URL rule in the recorder. Unlike the rects, this does not depend on
+      // visibility: a password field scrolled out of view or hidden behind a step of the
+      // form still makes this a login screen.
+      hasPasswordField: !!document.querySelector('input[type="password"]'),
     });
 
     const INTERACTIVE = 'a, button, [role="button"], [role="menuitem"], [role="tab"], [role="link"], input, select, textarea, [contenteditable="true"], [onclick], label, summary';

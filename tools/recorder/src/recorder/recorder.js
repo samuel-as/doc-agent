@@ -82,9 +82,12 @@ export class Recorder {
     await page.waitForLoadState('load', { timeout: 10_000 }).catch(() => {});
     await this.settle(page);
     await page.evaluate(buildInitScript()).catch(() => {}); // re-instrument after the navigation
+    // Fails CLOSED: if the page cannot answer (detached context, chrome:// page), assume a
+    // password field is there — a URL kept in full on a login screen leaks a credential,
+    // while a URL shortened by mistake only loses a query string from the guide.
     const hasPw = await page
       .evaluate(`!!document.querySelector('input[type="password"]')`)
-      .catch(() => false);
+      .catch(() => true);
     st.hadPasswordField = hasPw;
     applySensitivity(); // reapply with the final URL (redirects during the load)
     const cap = await this.screenshot(page);
@@ -97,9 +100,11 @@ export class Recorder {
   }
 
   async onEvent(page, payload, frame = null) {
-    const ev = { ...payload };
-    const payloadRects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
-    this._stateFor(page).hadPasswordField = payloadRects.some((r) => r.reason === 'password');
+    // hasPasswordField is internal: it drives the URL rule and is not recorded. Reading it
+    // from the rects instead only saw VISIBLE light-DOM fields, so a login screen whose
+    // password input was hidden or off-screen let the submit URL through with its query.
+    const { hasPasswordField, ...ev } = payload;
+    this._stateFor(page).hadPasswordField = !!hasPasswordField;
     // addInitScript and exposeBinding run in EVERY frame, but a rect measured inside an
     // iframe is relative to the IFRAME viewport: painted on the screenshot of the whole
     // page it would blank the wrong area and leave the real field readable. So a

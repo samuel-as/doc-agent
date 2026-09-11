@@ -167142,6 +167142,10 @@ function buildInitScript() {
       label: el ? labelFor(el) : null, selector: el ? cssPath(el) : null,
       scrollY: window.scrollY, viewportH: window.innerHeight,
       sensitiveRects: sensitiveRects(el),
+      // Drives the URL rule in the recorder. Unlike the rects, this does not depend on
+      // visibility: a password field scrolled out of view or hidden behind a step of the
+      // form still makes this a login screen.
+      hasPasswordField: !!document.querySelector('input[type="password"]'),
     });
 
     const INTERACTIVE = 'a, button, [role="button"], [role="menuitem"], [role="tab"], [role="link"], input, select, textarea, [contenteditable="true"], [onclick], label, summary';
@@ -167330,7 +167334,7 @@ var init_recorder2 = __esm2({
         await this.settle(page);
         await page.evaluate(buildInitScript()).catch(() => {
         });
-        const hasPw = await page.evaluate(`!!document.querySelector('input[type="password"]')`).catch(() => false);
+        const hasPw = await page.evaluate(`!!document.querySelector('input[type="password"]')`).catch(() => true);
         st2.hadPasswordField = hasPw;
         applySensitivity();
         const cap = await this.screenshot(page);
@@ -167350,9 +167354,8 @@ var init_recorder2 = __esm2({
         }, cap.buf);
       }
       async onEvent(page, payload, frame = null) {
-        const ev = { ...payload };
-        const payloadRects = Array.isArray(ev.sensitiveRects) ? ev.sensitiveRects : [];
-        this._stateFor(page).hadPasswordField = payloadRects.some((r) => r.reason === "password");
+        const { hasPasswordField, ...ev } = payload;
+        this._stateFor(page).hadPasswordField = !!hasPasswordField;
         const inChildFrame = !!frame && typeof page.mainFrame === "function" && frame !== page.mainFrame();
         const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind) && !inChildFrame;
         const cap = wantsShot ? await this.screenshot(page) : null;

@@ -14,6 +14,7 @@ test('the injected script contains the binding, the listeners and the reinstall 
   assert.ok(src.includes('composedPath'), 'shadow DOM: must resolve the real target via composedPath');
   assert.ok(src.includes("cursor === 'pointer'"), 'pointer-cursor fallback for role-less clickables');
   assert.ok(src.includes('__docAgentSensitiveRects'), 'page must expose sensitive rects for navigation shots');
+  assert.ok(src.includes('hasPasswordField'), 'every event must report whether the page has a password field');
   assert.ok(!src.includes('pageHasPassword'), 'page-level suppression is gone');
 });
 
@@ -181,7 +182,10 @@ function fakeTab() {
       const s = String(expr);
       if (s.includes('MutationObserver')) { await new Promise((r) => setTimeout(r, tab._settleDelay)); return true; }
       if (s.includes('__docAgentSensitiveRects')) return tab._rects;
-      if (s.includes('input[type="password"]')) return tab._hasPw;
+      if (s.includes('input[type="password"]')) {
+        if (tab._probeThrows) throw new Error('execution context destroyed');
+        return tab._hasPw;
+      }
       return undefined; // init script re-injection
     },
     screenshot: async () => Buffer.from('png'),
@@ -216,7 +220,7 @@ test('navigation leaving a password screen: URL without query/hash (screenshot a
   const rec = new Recorder(null, session);
   const tab = fakeTab();
   tab._url = 'https://app.example.com/login'; tab._hasPw = true;
-  await rec.onEvent(tab, { kind: 'click', ts: 1, sensitiveRects: PW_RECTS }); // marks THIS tab as "has a password field"
+  await rec.onEvent(tab, { kind: 'click', ts: 1, hasPasswordField: true }); // marks THIS tab as "has a password field"
   tab._url = 'https://app.example.com/home?pwd=SECRET#tk=SECRET'; tab._hasPw = false; tab._rects = [];
   await rec.onNavigation(tab);
   assert.equal(calls[1].ev.url, 'https://app.example.com/home'); // no query, no hash
@@ -234,7 +238,7 @@ test('multi-tab: a password screen in tab A does not shorten URLs in tab B', asy
   const tabA = fakeTab();
   const tabB = fakeTab();
   tabA._url = 'https://app.example.com/login'; tabA._hasPw = true;
-  await rec.onEvent(tabA, { kind: 'click', ts: 1, sensitiveRects: PW_RECTS });
+  await rec.onEvent(tabA, { kind: 'click', ts: 1, hasPasswordField: true });
   tabB._url = 'https://intranet.example.com/dashboard?tab=2';
   await rec.onNavigation(tabB);
   assert.equal(calls[1].ev.url, 'https://intranet.example.com/dashboard?tab=2');
@@ -249,7 +253,7 @@ test('a click on the destination page during the load does not clear the URL pro
   const rec = new Recorder(null, session);
   const tab = fakeTab();
   tab._url = 'https://app.example.com/login'; tab._hasPw = true;
-  await rec.onEvent(tab, { kind: 'click', ts: 1, sensitiveRects: PW_RECTS });
+  await rec.onEvent(tab, { kind: 'click', ts: 1, hasPasswordField: true });
   tab._url = 'https://app.example.com/home?pwd=SECRET'; tab._hasPw = false;
   let releaseLoad;
   tab.waitForLoadState = () => new Promise((r) => { releaseLoad = r; });
@@ -295,4 +299,31 @@ test('a screenshot failure does not drop the event (shot null)', async () => {
   await rec.onEvent(page, { kind: 'click', ts: 1, sensitiveRects: [] });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].shot, null);
+});
+
+test('the password flag comes from the page itself, not from the visible rects', async () => {
+  const { calls, session } = fakes();
+  const rec = new Recorder(null, session);
+  const tab = fakeTab();
+  // A password field that is hidden, inside a shadow root or off-screen produces no rect,
+  // yet the page IS a login screen and its submit URL must be shortened.
+  tab._url = 'https://app.example.com/login';
+  await rec.onEvent(tab, { kind: 'click', ts: 1, hasPasswordField: true, sensitiveRects: [] });
+  assert.ok(!('hasPasswordField' in calls[0].ev), 'internal flag must not be recorded');
+  tab._url = 'https://app.example.com/home?pwd=SECRET#tk=SECRET';
+  await rec.onNavigation(tab);
+  assert.equal(calls[1].ev.url, 'https://app.example.com/home');
+});
+
+test('a page whose password probe fails counts as a password screen (fail closed)', async () => {
+  const { calls, session } = fakes();
+  const rec = new Recorder(null, session);
+  const tab = fakeTab();
+  tab._url = 'https://app.example.com/login';
+  tab._probeThrows = true;
+  await rec.onNavigation(tab);
+  tab._probeThrows = false;
+  tab._url = 'https://app.example.com/home?token=SECRET';
+  await rec.onNavigation(tab);
+  assert.equal(calls[1].ev.url, 'https://app.example.com/home');
 });
