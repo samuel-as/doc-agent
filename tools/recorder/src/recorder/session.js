@@ -32,9 +32,21 @@ export class SessionWriter {
   async addEvent(ev, screenshotBuffer = null) {
     let screenshot = null;
     if (screenshotBuffer) {
-      this.rawCount += 1;
-      screenshot = `shots/raw-${String(this.rawCount).padStart(3, '0')}.png`;
-      await fs.writeFile(path.join(this.dir, screenshot), screenshotBuffer);
+      // Privacy invariant: pixels of a sensitive field never reach the disk, not even in
+      // the temporary raw capture. A recording killed before finalize() used to leave
+      // unredacted raws behind in shots/. If painting fails the capture is dropped
+      // entirely — no image is better than a readable password.
+      let buf = screenshotBuffer;
+      const rects = ev.sensitiveRects ?? [];
+      let ok = true;
+      if (rects.length) {
+        try { buf = await drawRedaction(buf, rects); } catch { ok = false; }
+      }
+      if (ok) {
+        this.rawCount += 1;
+        screenshot = `shots/raw-${String(this.rawCount).padStart(3, '0')}.png`;
+        await fs.writeFile(path.join(this.dir, screenshot), buf);
+      }
     }
     this.events.push({ ...ev, screenshot });
   }
@@ -49,47 +61,34 @@ export class SessionWriter {
     const orderedEvents = [...this.events].sort((a, b) => a.ts - b.ts);
     const steps = consolidate(orderedEvents);
     const finalSteps = [];
-    try {
-      for (const step of steps) {
-        let finalShot = null;
-        try {
-          if (step.screenshot) {
-            let buf = await fs.readFile(path.join(this.dir, step.screenshot));
-            let ok = true;
-            const rects = step.sensitiveRects ?? [];
-            if (rects.length) {
-              // Privacy invariant: a screenshot with unredacted sensitive fields never reaches
-              // the disk as the FINAL image. If painting fails, the step goes on without an image.
-              try { buf = await drawRedaction(buf, rects); } catch { ok = false; }
-            }
-            if (ok && step.coords) {
-              try { buf = await drawMarker(buf, step.coords); } catch { /* a screenshot without the marker beats no screenshot */ }
-            }
-            if (ok) {
-              finalShot = `shots/step-${String(step.index).padStart(3, '0')}.png`;
-              await fs.writeFile(path.join(this.dir, finalShot), buf);
-            }
-          }
-        } catch {
-          // One step's read/write failure shouldn't abort the whole loop and skip
-          // cleanup of the raw screenshots already processed (or not yet processed)
-          // below — it just leaves that step without an image.
-          finalShot = null;
-        }
-        const { coords, screenshot, sensitiveRects, ...rest } = step;
-        finalSteps.push({ ...rest, screenshot: finalShot });
-      }
-    } finally {
-      // Raw captures are unredacted; delete them as aggressively as possible even
-      // if the per-step loop above threw for some other reason.
-      try {
-        for (const f of await fs.readdir(this.shotsDir)) {
-          if (f.startsWith('raw-')) await fs.rm(path.join(this.shotsDir, f)).catch(() => {});
-        }
-      } catch { /* best effort */ }
+    for (const step of steps) {
+      const finalShot = step.screenshot ? await this._renderShot(step) : null;
+      const { coords, screenshot, sensitiveRects, ...rest } = step;
+      finalSteps.push({ ...rest, screenshot: finalShot });
+    }
+    // The raws are already redacted (addEvent), but they duplicate the final images.
+    for (const f of await fs.readdir(this.shotsDir).catch(() => [])) {
+      if (f.startsWith('raw-')) await fs.rm(path.join(this.shotsDir, f)).catch(() => {});
     }
     const session = { schema: 2, name: this.name, createdAt: new Date().toISOString(), steps: finalSteps };
     await fs.writeFile(path.join(this.dir, 'session.json'), JSON.stringify(session, null, 2));
     return this.dir;
+  }
+
+  // Final image of a step: the click marker on top of the already-redacted raw capture,
+  // saved as shots/step-NNN.png. Returns null on any failure — one step without an image
+  // must not abort the rest of the recording.
+  async _renderShot(step) {
+    try {
+      let buf = await fs.readFile(path.join(this.dir, step.screenshot));
+      if (step.coords) {
+        try { buf = await drawMarker(buf, step.coords); } catch { /* a screenshot without the marker beats no screenshot */ }
+      }
+      const finalShot = `shots/step-${String(step.index).padStart(3, '0')}.png`;
+      await fs.writeFile(path.join(this.dir, finalShot), buf);
+      return finalShot;
+    } catch {
+      return null;
+    }
   }
 }

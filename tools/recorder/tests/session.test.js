@@ -136,3 +136,25 @@ test('when the redaction fails, the step keeps no screenshot at all', async () =
   assert.equal(json.steps[0].screenshot, null);
   assert.deepEqual(await fs.readdir(path.join(dir, 'shots')), []);
 });
+
+test('the raw capture is redacted before it reaches the disk', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
+  const session = new SessionWriter(path.join(root, 'docs', 'raw-redact'), 'raw-redact', NOW);
+  await session.init();
+  await session.addEvent(ev('click', { selector: '#login', sensitiveRects: [{ x: 10, y: 10, w: 20, h: 10, reason: 'password' }] }), await tinyPng());
+  // Checked BEFORE finalize: a recording killed halfway must not leave readable pixels
+  // of a sensitive field behind in shots/.
+  const png = PNG.sync.read(await fs.readFile(path.join(session.dir, 'shots', 'raw-001.png')));
+  const px = (x, y) => { const i = (png.width * y + x) << 2; return [png.data[i], png.data[i + 1], png.data[i + 2]]; };
+  assert.deepEqual(px(20, 15), [43, 43, 43]);
+  assert.deepEqual(px(45, 45), [255, 255, 255]);
+});
+
+test('a capture whose redaction fails is never written at all', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
+  const session = new SessionWriter(path.join(root, 'docs', 'raw-redact-fail'), 'raw-redact-fail', NOW);
+  await session.init();
+  await session.addEvent(ev('click', { selector: '#login', sensitiveRects: [{ x: 1, y: 1, w: 2, h: 2, reason: 'password' }] }), Buffer.from('not-a-png'));
+  assert.deepEqual(await fs.readdir(session.shotsDir), []);
+  assert.equal(session.events[0].screenshot, null);
+});

@@ -166859,9 +166859,21 @@ var init_session2 = __esm2({
       async addEvent(ev, screenshotBuffer = null) {
         let screenshot4 = null;
         if (screenshotBuffer) {
-          this.rawCount += 1;
-          screenshot4 = `shots/raw-${String(this.rawCount).padStart(3, "0")}.png`;
-          await fs2.writeFile(path2.join(this.dir, screenshot4), screenshotBuffer);
+          let buf = screenshotBuffer;
+          const rects = ev.sensitiveRects ?? [];
+          let ok = true;
+          if (rects.length) {
+            try {
+              buf = await drawRedaction(buf, rects);
+            } catch {
+              ok = false;
+            }
+          }
+          if (ok) {
+            this.rawCount += 1;
+            screenshot4 = `shots/raw-${String(this.rawCount).padStart(3, "0")}.png`;
+            await fs2.writeFile(path2.join(this.dir, screenshot4), buf);
+          }
         }
         this.events.push({ ...ev, screenshot: screenshot4 });
       }
@@ -166869,50 +166881,37 @@ var init_session2 = __esm2({
         const orderedEvents = [...this.events].sort((a, b2) => a.ts - b2.ts);
         const steps = consolidate(orderedEvents);
         const finalSteps = [];
-        try {
-          for (const step of steps) {
-            let finalShot = null;
-            try {
-              if (step.screenshot) {
-                let buf = await fs2.readFile(path2.join(this.dir, step.screenshot));
-                let ok = true;
-                const rects = step.sensitiveRects ?? [];
-                if (rects.length) {
-                  try {
-                    buf = await drawRedaction(buf, rects);
-                  } catch {
-                    ok = false;
-                  }
-                }
-                if (ok && step.coords) {
-                  try {
-                    buf = await drawMarker(buf, step.coords);
-                  } catch {
-                  }
-                }
-                if (ok) {
-                  finalShot = `shots/step-${String(step.index).padStart(3, "0")}.png`;
-                  await fs2.writeFile(path2.join(this.dir, finalShot), buf);
-                }
-              }
-            } catch {
-              finalShot = null;
-            }
-            const { coords, screenshot: screenshot4, sensitiveRects, ...rest } = step;
-            finalSteps.push({ ...rest, screenshot: finalShot });
-          }
-        } finally {
-          try {
-            for (const f2 of await fs2.readdir(this.shotsDir)) {
-              if (f2.startsWith("raw-")) await fs2.rm(path2.join(this.shotsDir, f2)).catch(() => {
-              });
-            }
-          } catch {
-          }
+        for (const step of steps) {
+          const finalShot = step.screenshot ? await this._renderShot(step) : null;
+          const { coords, screenshot: screenshot4, sensitiveRects, ...rest } = step;
+          finalSteps.push({ ...rest, screenshot: finalShot });
+        }
+        for (const f2 of await fs2.readdir(this.shotsDir).catch(() => [])) {
+          if (f2.startsWith("raw-")) await fs2.rm(path2.join(this.shotsDir, f2)).catch(() => {
+          });
         }
         const session2 = { schema: 2, name: this.name, createdAt: (/* @__PURE__ */ new Date()).toISOString(), steps: finalSteps };
         await fs2.writeFile(path2.join(this.dir, "session.json"), JSON.stringify(session2, null, 2));
         return this.dir;
+      }
+      // Final image of a step: the click marker on top of the already-redacted raw capture,
+      // saved as shots/step-NNN.png. Returns null on any failure — one step without an image
+      // must not abort the rest of the recording.
+      async _renderShot(step) {
+        try {
+          let buf = await fs2.readFile(path2.join(this.dir, step.screenshot));
+          if (step.coords) {
+            try {
+              buf = await drawMarker(buf, step.coords);
+            } catch {
+            }
+          }
+          const finalShot = `shots/step-${String(step.index).padStart(3, "0")}.png`;
+          await fs2.writeFile(path2.join(this.dir, finalShot), buf);
+          return finalShot;
+        } catch {
+          return null;
+        }
       }
     };
   }
