@@ -1,4 +1,4 @@
-// Classifies a form field as sensitive. PURE: no DOM, no Node APIs, no imports.
+﻿// Classifies a form field as sensitive. PURE: no DOM, no Node APIs, no imports.
 // createSensitivity is stringified into the injected page script (instrument.js) and
 // also used by the recorder as defence in depth — everything it needs lives inside it.
 // Lists come from Firefox HeuristicsRegExp, Chromium autofill, Bitwarden and KeePassXC,
@@ -7,7 +7,7 @@ export function createSensitivity() {
   const splitCamel = (s) => String(s ?? '').replace(/([a-z])([A-Z])/g, '$1 $2');
   const norm = (s) => String(s ?? '')
     .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '') // keep the \u escapes: this source is inlined into the page script
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // keep the \u escapes: this source is inlined into the page script
     .replace(/[_\-.\s]+/g, ' ')
     .trim();
   const words = (list) => new RegExp('(^| )(' + list.join('|') + ')( |$)');
