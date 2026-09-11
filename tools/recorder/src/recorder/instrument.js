@@ -173,8 +173,10 @@ export function buildInitScript() {
       if (!isEditable(el)) return;
       const raw = el.isContentEditable ? el.innerText : el.value;
       const reason = sensitivityOf(fieldInfo(el, raw));
-      // The value of a sensitive field never leaves the page.
-      send({ ...base('field-commit', el), isSensitive: !!reason, sensitiveReason: reason, value: reason ? null : raw });
+      // The value of a sensitive field never leaves the page — only whether there WAS one,
+      // so the consolidation can drop a field the user merely tabbed through.
+      send({ ...base('field-commit', el), isSensitive: !!reason, sensitiveReason: reason,
+        value: reason ? null : raw, hasValue: String(raw ?? '').length > 0 });
     };
 
     document.addEventListener('focusout', (e) => commit(target(e)), true);

@@ -66,7 +66,11 @@ export function consolidate(events) {
       }
 
       case 'field-commit': {
-        if (!ev.isSensitive && (ev.value == null || ev.value === '')) break;
+        // A field the user only passed through has nothing to fill in. The value of a
+        // sensitive field never reaches here, so hasValue -- a boolean built in the page --
+        // is what tells an empty field from a filled one.
+        const empty = ev.isSensitive ? ev.hasValue === false : (ev.value == null || ev.value === '');
+        if (empty) break;
         // Enter commits, and the focusout right after commits again with the same value:
         // with no new focus on the selector, the second commit is a duplicate and is dropped.
         if (lastCommitBySelector.has(ev.selector) && lastCommitBySelector.get(ev.selector) === ev.value) break;

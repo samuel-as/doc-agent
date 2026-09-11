@@ -24,6 +24,13 @@ test('labelFor does not fall back to el.value outside button/submit/reset inputs
   assert.ok(src.includes("['button','submit','reset']"), 'button/submit/reset guard missing');
 });
 
+test('field-commit reports whether the field had a value, never the value of a sensitive one', () => {
+  const src = buildInitScript();
+  const commit = src.slice(src.indexOf('const commit ='), src.indexOf("addEventListener('focusout'"));
+  assert.ok(commit.includes('hasValue:'), 'hasValue flag missing');
+  assert.ok(commit.includes('value: reason ? null : raw'), 'the value of a sensitive field must stay in the page');
+});
+
 test('labelFor never uses the innerText of a contenteditable: that IS the typed value', () => {
   const src = buildInitScript();
   const body = src.slice(src.indexOf('const labelFor'), src.indexOf('const cssPath'));

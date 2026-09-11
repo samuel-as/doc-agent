@@ -250,3 +250,21 @@ test('a fill done with the mouse keeps its scrolled flag: the focusin right afte
   assert.equal(fill.screenshot, 'shots/raw-002.png'); // the click's capture, not the focus's
   assert.deepEqual(fill.coords, { x: 5, y: 6 });
 });
+
+test('a sensitive field the user only tabbed through produces no fill step', () => {
+  const steps = consolidate([
+    ev('click', { selector: '#phone', isEditable: true, isSensitive: true, sensitiveReason: 'phone' }),
+    ev('field-commit', { selector: '#phone', label: 'Phone', isSensitive: true, sensitiveReason: 'phone', value: null, hasValue: false, ts: 1200 }),
+  ]);
+  assert.equal(steps.length, 0);
+});
+
+test('a sensitive field that was filled produces one fill step with a null value', () => {
+  const steps = consolidate([
+    ev('field-commit', { selector: '#phone', label: 'Phone', isSensitive: true, sensitiveReason: 'phone', value: null, hasValue: true }),
+  ]);
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].type, 'fill');
+  assert.equal(steps[0].value, null);
+  assert.equal(steps[0].hasValue, undefined); // internal: must not reach the step
+});

@@ -63,6 +63,7 @@ if (mode === 'security') {
   for (const id of ['pwd', 'otp', 'card', 'cpf', 'phone', 'ticket']) {
     await page.click('#' + id); await page.fill('#' + id, SENTINELS[id]);
   }
+  await page.click('#extra-doc'); await page.keyboard.press('Tab'); // sensitive and left empty
   for (const id of ['pwd', 'otp', 'card', 'cpf', 'phone']) boxes[id] = await page.locator('#' + id).boundingBox();
   boxes.ticket = await page.locator('#ticket').boundingBox();
   await page.click('#login');
@@ -124,6 +125,8 @@ if (mode === 'security') {
     check(!!st, `fill step for #${id} missing`);
     check(st?.isSensitive === true && st?.value === null && st?.sensitiveReason === reason, `#${id} not masked as ${reason}: ${JSON.stringify(st)}`);
   }
+  check(!session.steps.some((s) => s.selector === '#extra-doc'),
+    'a sensitive field left empty must not produce a step');
   const login = session.steps.find((s) => s.type === 'click' && s.selector === '#login');
   check(!!login?.screenshot, 'the login click must now HAVE a screenshot (redacted)');
   if (login?.screenshot) {
