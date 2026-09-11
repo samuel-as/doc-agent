@@ -166745,7 +166745,27 @@ async function drawMarker(inputPng, { x: x2, y: y2 }) {
   }
   return import_pngjs.PNG.sync.write(png);
 }
-var import_pngjs, RADIUS, STROKE, COLOR, FILL_ALPHA;
+async function drawRedaction(inputPng, rects) {
+  const png = import_pngjs.PNG.sync.read(inputPng);
+  const { width, height, data } = png;
+  for (const r of rects) {
+    const x0 = Math.max(0, Math.floor(r.x - REDACT_PAD));
+    const y0 = Math.max(0, Math.floor(r.y - REDACT_PAD));
+    const x1 = Math.min(width - 1, Math.ceil(r.x + r.w + REDACT_PAD) - 1);
+    const y1 = Math.min(height - 1, Math.ceil(r.y + r.h + REDACT_PAD) - 1);
+    for (let py = y0; py <= y1; py++) {
+      for (let px = x0; px <= x1; px++) {
+        const i = width * py + px << 2;
+        data[i] = REDACT.r;
+        data[i + 1] = REDACT.g;
+        data[i + 2] = REDACT.b;
+        data[i + 3] = 255;
+      }
+    }
+  }
+  return import_pngjs.PNG.sync.write(png);
+}
+var import_pngjs, RADIUS, STROKE, COLOR, FILL_ALPHA, REDACT, REDACT_PAD;
 var init_marker = __esm2({
   "src/recorder/marker.js"() {
     import_pngjs = __toESM2(require_png(), 1);
@@ -166753,13 +166773,16 @@ var init_marker = __esm2({
     STROKE = 4;
     COLOR = { r: 224, g: 36, b: 94 };
     FILL_ALPHA = 0.25;
+    REDACT = { r: 43, g: 43, b: 43 };
+    REDACT_PAD = 2;
   }
 });
 
 // src/recorder/session.js
 var session_exports = {};
 __export2(session_exports, {
-  SessionWriter: () => SessionWriter
+  SessionWriter: () => SessionWriter,
+  drawRedaction: () => drawRedaction
 });
 import fs2 from "node:fs/promises";
 import path2 from "node:path";
