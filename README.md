@@ -115,7 +115,15 @@ personal data:
   name/label (in several languages, Portuguese included) and, for documents and cards, the
   value itself (check digits / Luhn).
 - **Sensitive fields are painted over in every screenshot** with a solid box, before the
-  image reaches the disk. If painting fails, that step gets no screenshot at all.
+  final image is written to disk. If painting fails, that step gets no screenshot at all.
+  The raw capture behind each step is written unredacted first and deleted once redaction
+  completes at the end of the recording; if the process crashes or is killed before that
+  cleanup runs, unredacted raw files may remain on disk under `sessions/.../shots/`.
+- **Known redaction gaps:** detection only scans the light DOM of the top frame plus the
+  element actually interacted with — a sensitive field inside an iframe, or a sensitive
+  field in a shadow root that isn't the one being interacted with, may not be redacted.
+  `contenteditable` elements have their sensitive values excluded from the recording the
+  same as `<input>`/`<textarea>`, but are not currently painted over in screenshots.
 - **A navigation leaving a password screen** has its URL recorded without `query` or
   `#fragment` (a login submit can carry a credential there). The protection holds as long as
   the page stays the same, and is tracked per tab.

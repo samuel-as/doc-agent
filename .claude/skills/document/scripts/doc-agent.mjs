@@ -166866,37 +166866,49 @@ var init_session2 = __esm2({
         this.events.push({ ...ev, screenshot: screenshot4 });
       }
       async finalize() {
-        const steps = consolidate(this.events);
+        const orderedEvents = [...this.events].sort((a, b2) => a.ts - b2.ts);
+        const steps = consolidate(orderedEvents);
         const finalSteps = [];
-        for (const step of steps) {
-          let finalShot = null;
-          if (step.screenshot) {
-            let buf = await fs2.readFile(path2.join(this.dir, step.screenshot));
-            let ok = true;
-            const rects = step.sensitiveRects ?? [];
-            if (rects.length) {
-              try {
-                buf = await drawRedaction(buf, rects);
-              } catch {
-                ok = false;
+        try {
+          for (const step of steps) {
+            let finalShot = null;
+            try {
+              if (step.screenshot) {
+                let buf = await fs2.readFile(path2.join(this.dir, step.screenshot));
+                let ok = true;
+                const rects = step.sensitiveRects ?? [];
+                if (rects.length) {
+                  try {
+                    buf = await drawRedaction(buf, rects);
+                  } catch {
+                    ok = false;
+                  }
+                }
+                if (ok && step.coords) {
+                  try {
+                    buf = await drawMarker(buf, step.coords);
+                  } catch {
+                  }
+                }
+                if (ok) {
+                  finalShot = `shots/step-${String(step.index).padStart(3, "0")}.png`;
+                  await fs2.writeFile(path2.join(this.dir, finalShot), buf);
+                }
               }
+            } catch {
+              finalShot = null;
             }
-            if (ok && step.coords) {
-              try {
-                buf = await drawMarker(buf, step.coords);
-              } catch {
-              }
-            }
-            if (ok) {
-              finalShot = `shots/step-${String(step.index).padStart(3, "0")}.png`;
-              await fs2.writeFile(path2.join(this.dir, finalShot), buf);
-            }
+            const { coords, screenshot: screenshot4, sensitiveRects, ...rest } = step;
+            finalSteps.push({ ...rest, screenshot: finalShot });
           }
-          const { coords, screenshot: screenshot4, sensitiveRects, ...rest } = step;
-          finalSteps.push({ ...rest, screenshot: finalShot });
-        }
-        for (const f2 of await fs2.readdir(this.shotsDir)) {
-          if (f2.startsWith("raw-")) await fs2.rm(path2.join(this.shotsDir, f2));
+        } finally {
+          try {
+            for (const f2 of await fs2.readdir(this.shotsDir)) {
+              if (f2.startsWith("raw-")) await fs2.rm(path2.join(this.shotsDir, f2)).catch(() => {
+              });
+            }
+          } catch {
+          }
         }
         const session2 = { schema: 2, name: this.name, createdAt: (/* @__PURE__ */ new Date()).toISOString(), steps: finalSteps };
         await fs2.writeFile(path2.join(this.dir, "session.json"), JSON.stringify(session2, null, 2));

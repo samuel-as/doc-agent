@@ -37,7 +37,9 @@ export async function drawMarker(inputPng, { x, y }) {
 const REDACT = { r: 43, g: 43, b: 43 }; // #2b2b2b — solid, never pixelated (pixelation is reversible)
 const REDACT_PAD = 2;
 
-// Paints solid boxes over sensitive fields. Called BEFORE the PNG reaches the disk.
+// Paints solid boxes over sensitive fields. Called before the FINAL PNG (shots/step-NNN.png)
+// reaches the disk. The raw capture (shots/raw-NNN.png) is written unredacted and only
+// deleted afterwards — see session.js finalize().
 export async function drawRedaction(inputPng, rects) {
   const png = PNG.sync.read(inputPng);
   const { width, height, data } = png;

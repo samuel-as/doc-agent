@@ -40,32 +40,53 @@ export class SessionWriter {
   }
 
   async finalize() {
-    const steps = consolidate(this.events);
+    // Events can be appended out of chronological order: screenshot capture for
+    // click/field-focus/check/shortcut/drag-start is serialized through a promise
+    // chain, while enter/field-commit/drag events (no screenshot) are appended
+    // synchronously and can jump ahead of an earlier event still awaiting its
+    // capture. Sort by ts (stable, so same-ts events keep arrival order) before
+    // consolidate() assumes array order == chronological order.
+    const orderedEvents = [...this.events].sort((a, b) => a.ts - b.ts);
+    const steps = consolidate(orderedEvents);
     const finalSteps = [];
-    for (const step of steps) {
-      let finalShot = null;
-      if (step.screenshot) {
-        let buf = await fs.readFile(path.join(this.dir, step.screenshot));
-        let ok = true;
-        const rects = step.sensitiveRects ?? [];
-        if (rects.length) {
-          // Privacy invariant: a screenshot with unredacted sensitive fields never reaches
-          // the disk. If painting fails, the step goes on without an image.
-          try { buf = await drawRedaction(buf, rects); } catch { ok = false; }
+    try {
+      for (const step of steps) {
+        let finalShot = null;
+        try {
+          if (step.screenshot) {
+            let buf = await fs.readFile(path.join(this.dir, step.screenshot));
+            let ok = true;
+            const rects = step.sensitiveRects ?? [];
+            if (rects.length) {
+              // Privacy invariant: a screenshot with unredacted sensitive fields never reaches
+              // the disk as the FINAL image. If painting fails, the step goes on without an image.
+              try { buf = await drawRedaction(buf, rects); } catch { ok = false; }
+            }
+            if (ok && step.coords) {
+              try { buf = await drawMarker(buf, step.coords); } catch { /* a screenshot without the marker beats no screenshot */ }
+            }
+            if (ok) {
+              finalShot = `shots/step-${String(step.index).padStart(3, '0')}.png`;
+              await fs.writeFile(path.join(this.dir, finalShot), buf);
+            }
+          }
+        } catch {
+          // One step's read/write failure shouldn't abort the whole loop and skip
+          // cleanup of the raw screenshots already processed (or not yet processed)
+          // below — it just leaves that step without an image.
+          finalShot = null;
         }
-        if (ok && step.coords) {
-          try { buf = await drawMarker(buf, step.coords); } catch { /* a screenshot without the marker beats no screenshot */ }
-        }
-        if (ok) {
-          finalShot = `shots/step-${String(step.index).padStart(3, '0')}.png`;
-          await fs.writeFile(path.join(this.dir, finalShot), buf);
-        }
+        const { coords, screenshot, sensitiveRects, ...rest } = step;
+        finalSteps.push({ ...rest, screenshot: finalShot });
       }
-      const { coords, screenshot, sensitiveRects, ...rest } = step;
-      finalSteps.push({ ...rest, screenshot: finalShot });
-    }
-    for (const f of await fs.readdir(this.shotsDir)) {
-      if (f.startsWith('raw-')) await fs.rm(path.join(this.shotsDir, f));
+    } finally {
+      // Raw captures are unredacted; delete them as aggressively as possible even
+      // if the per-step loop above threw for some other reason.
+      try {
+        for (const f of await fs.readdir(this.shotsDir)) {
+          if (f.startsWith('raw-')) await fs.rm(path.join(this.shotsDir, f)).catch(() => {});
+        }
+      } catch { /* best effort */ }
     }
     const session = { schema: 2, name: this.name, createdAt: new Date().toISOString(), steps: finalSteps };
     await fs.writeFile(path.join(this.dir, 'session.json'), JSON.stringify(session, null, 2));

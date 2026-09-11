@@ -104,6 +104,27 @@ test('sensitive rects are painted over before the screenshot reaches the disk', 
   assert.deepEqual(px(45, 45), [255, 255, 255]); // elsewhere: untouched
 });
 
+test('events appended out of ts order (screenshot race) are still consolidated in ts order', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
+  const session = new SessionWriter(path.join(root, 'docs', 'race'), 'race', NOW);
+  await session.init();
+
+  // Simulates the real race: drag-start (ts=1000) has a screenshot capture that is slow
+  // to resolve, so by the time it is appended, the drag event (ts=1500, no screenshot,
+  // appended synchronously/immediately) has already landed in session.events first.
+  await session.addEvent(ev('drag', { ts: 1500, target: '#dropzone' }), null);
+  await session.addEvent(ev('drag-start', { ts: 1000, selector: '#draggable', coords: { x: 5, y: 5 } }), await tinyPng());
+
+  const dir = await session.finalize();
+  const json = JSON.parse(await fs.readFile(path.join(dir, 'session.json'), 'utf8'));
+
+  assert.equal(json.steps.length, 1);
+  assert.equal(json.steps[0].type, 'drag');
+  // The drag step must inherit drag-start's screenshot, which only happens if
+  // drag-start is consolidated BEFORE drag despite arriving second in this.events.
+  assert.equal(json.steps[0].screenshot, 'shots/step-001.png');
+});
+
 test('when the redaction fails, the step keeps no screenshot at all', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
   const session = new SessionWriter(path.join(root, 'docs', 'redact-fail'), 'redact-fail', NOW);
