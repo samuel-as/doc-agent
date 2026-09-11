@@ -106,21 +106,27 @@ produces an English one.
 
 ## Privacy and security
 
-The recorder was designed assuming you will walk through login screens:
+The recorder was designed assuming you will walk through login screens and forms with
+personal data:
 
-- **A screen with a password field produces no screenshot.** When in doubt (inspecting the
-  page failed), it takes none either.
-- **Password values are never recorded** — the step keeps `value: null`.
+- **Sensitive values are never recorded.** Passwords, one-time/MFA codes, card numbers and
+  security codes, personal documents (CPF, CNPJ, RG, passport, SSN…) and phone numbers keep
+  `value: null` in the step. Detection uses the field's `autocomplete` attribute, its
+  name/label (in several languages, Portuguese included) and, for documents and cards, the
+  value itself (check digits / Luhn).
+- **Sensitive fields are painted over in every screenshot** with a solid box, before the
+  image reaches the disk. If painting fails, that step gets no screenshot at all.
 - **A navigation leaving a password screen** has its URL recorded without `query` or
-  `#fragment` (a login submit can carry a credential there) and produces no screenshot.
-  The protection holds as long as the page stays the same.
-- **State is per tab:** a login screen in tab A does not suppress screenshots in tab B.
+  `#fragment` (a login submit can carry a credential there). The protection holds as long as
+  the page stays the same, and is tracked per tab.
+- **E-mail and other ordinary values are recorded** and used as examples in the guide.
 - **Nothing leaves your machine through the recorder.** Logins live in
   `%LOCALAPPDATA%\doc-agent\browser-profile`, never inside a repository.
 
-Even so: **review the screenshots before sharing the documentation.** If sensitive data
-shows up on a screen that is not a password screen, it will be in the image — in the doc
-(`docs/<slug>/screenshots/`) and in the raw recording (`docs/<slug>/sessions/`).
+Even so: **review the screenshots before sharing the documentation.** Sensitive data shown
+as plain text on a screen (a list of users, a report) is not a form field and will be in the
+image — in the doc (`docs/<slug>/screenshots/`) and in the raw recording
+(`docs/<slug>/sessions/`).
 
 ## Repository layout
 

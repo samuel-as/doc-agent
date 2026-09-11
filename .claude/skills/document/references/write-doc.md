@@ -33,6 +33,14 @@ field names are always quoted exactly as they appear on screen, never translated
      the click, and the navigation screenshot shows the result ("Screen X is displayed").
    - `enter` steps become part of the field instruction ("...and press Enter"), not a step
      of their own.
+   - `check` steps: "Check **Urgent**" / "Uncheck **Urgent**" (radio buttons: "Select **Two copies**").
+     Consecutive checks in the same form join the fill step of that form.
+   - `shortcut` steps: "Press **Ctrl+S**". When immediately followed by a `navigation`, it is one
+     step, like a click.
+   - `drag` steps: "Drag **Task A** to **Done**" — `label` is what was dragged, `target` where it
+     was dropped.
+   - A step with `scrolled: true` starts with the scroll: "Scroll down to **Advanced settings** and
+     click **Save**". Never write a separate "scroll" step.
 
 4. **Write the documentation** to `docs/<slug>/README.md`, following exactly this template:
 
@@ -73,8 +81,10 @@ field names are always quoted exactly as they appear on screen, never translated
   ("the user clicked").
 - Button, field and menu names in **bold**, exactly as they appear on screen (use the
   screenshots).
-- Password steps: write only "Fill in the **Password** field" — the value is never in the
-  log and must not be invented. The same applies to any `null` value.
+- Sensitive fields (`isSensitive: true` — password, one-time code, card, personal document,
+  phone): write only "Fill in the **Password** field" / "Enter the **verification code**" —
+  the value is never in the log and must not be invented. The same applies to any `null`
+  value. Sessions from older recordings use `isPassword` instead; treat it the same way.
 - Do not invent steps that are not in the session. If the sequence looks like it has a gap
   (e.g. the screen changed with no recorded click), add "> **Note:** review this part —
   the recording may have missed an action" at the matching point.

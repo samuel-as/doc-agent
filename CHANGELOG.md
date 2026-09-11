@@ -6,6 +6,29 @@ versions follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+
+- Recorder captures checkbox/radio changes (`check`), keyboard shortcuts with a modifier
+  (`shortcut`; Ctrl+C/V/A/Z ignored) and drag & drop (`drag`, with the drop target).
+- Steps carry `scrolled: true` when the user scrolled more than half a viewport since the
+  previous action on the same page; the guide says "Scroll down to … and click …".
+- Clicks inside shadow DOM (`composedPath`) and on role-less elements with a pointer cursor
+  are recorded.
+- Sensitive-field detection beyond `type=password`: `autocomplete` tokens, multilingual
+  field names (Portuguese included), CPF/CNPJ check digits and Luhn for cards. Values are
+  never stored; fields are painted over in screenshots.
+- After a navigation the recorder waits for the DOM to go quiet (300 ms, cap 1.5 s), so SPA
+  route changes are captured after they render.
+- `session.json` now declares `"schema": 2`; `isPassword` became `isSensitive` +
+  `sensitiveReason`.
+- New smoke `npm run smoke:dynamic` (shadow DOM + SPA settle); security smoke covers every
+  sensitive category.
+
+### Changed
+
+- **Screens with a password field now get screenshots**, with the sensitive fields redacted.
+  Previously the whole screenshot was suppressed.
+
 ## [0.2.1] — 2026-09-04
 
 ### Changed
