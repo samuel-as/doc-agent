@@ -38,19 +38,42 @@ no admin rights, no PATH changes, no registry.
 
 ## Install
 
-As a skill, in whatever project you want the docs to land in:
+### As a plugin — recommended, and the only one that updates itself
+
+In Claude Code:
+
+```
+/plugin marketplace add samuel-as/doc-agent
+```
+
+```
+/plugin install doc-agent@doc-agent
+```
+
+Installs once and is available in **every** project, as `/doc-agent:document`. Each new
+release published on `main` arrives on its own, at the next Claude Code session — no Node
+and no `npx` involved.
+
+### As a skill in a single project
 
 ```bash
 npx skills add samuel-as/doc-agent
 ```
 
-Or clone and use the repository folder directly:
+Puts the skill in the current project, as `/document`. Needs `npx` (that is, Node
+installed) and gives you a frozen copy: to move to a new version, run the command again.
+
+### Without Node, without npx
+
+Clone the repository and open Claude Code in that folder:
 
 ```bash
 git clone https://github.com/samuel-as/doc-agent.git
 ```
 
-Either way, open Claude Code in that folder and the `/document` skill is available.
+Or, with no git either: download the repository ZIP from GitHub ("Code" → "Download ZIP")
+and copy the `.claude/skills/document` folder from it into `.claude/skills/` of your
+project. The skill is self-contained — it carries its own runtime bootstrap.
 
 ## Usage
 
@@ -59,6 +82,9 @@ Either way, open Claude Code in that folder and the `/document` skill is availab
 ```
 /document vpn-ticket-request
 ```
+
+(installed as a plugin, the command is `/doc-agent:document vpn-ticket-request` — the rest
+of this README writes `/document` for short)
 
 What happens:
 
@@ -149,6 +175,7 @@ image — in the doc (`docs/<slug>/screenshots/`) and in the raw recording
 ## Repository layout
 
 ```
+.claude-plugin/marketplace.json   ← makes the repository a Claude Code marketplace
 .claude/skills/document/          ← the skill (self-contained, travels whole via npx)
 ├── SKILL.md                      ← record + regenerate flow
 ├── references/write-doc.md       ← how the documentation is written
@@ -161,8 +188,8 @@ tools/recorder/                   ← recorder source code, tests and smoke test
 docs/superpowers/                 ← design specs and implementation plans
 ```
 
-The bundle is committed on purpose: it is what makes both `npx skills add` and
-clone-and-use work without `npm install`.
+The bundle is committed on purpose: it is what makes plugin install, `npx skills add`
+and clone-and-use all work without `npm install`.
 
 ## Development
 
@@ -183,6 +210,9 @@ npm run smoke:pdf      # PDF export
   change otherwise.
 - To update the portable Node: edit `$NodeVersion` in
   `.claude/skills/document/scripts/bootstrap.ps1`.
+- Releasing? The version lives in two files — `tools/recorder/package.json` and the plugin
+  entry in `.claude-plugin/marketplace.json`. CI fails when they disagree, because a plugin
+  install only picks up a new version when that number changes.
 
 ## Troubleshooting
 

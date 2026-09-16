@@ -38,20 +38,43 @@ oficial (zip fixado, de `nodejs.org`) — uma vez por máquina, em `%LOCALAPPDAT
 
 ## Instalação
 
-Como skill, no projeto em que você quer que a documentação seja criada:
+### Como plugin — recomendado, e o único que se atualiza sozinho
+
+No Claude Code:
+
+```
+/plugin marketplace add samuel-as/doc-agent
+```
+
+```
+/plugin install doc-agent@doc-agent
+```
+
+Instala uma vez e fica disponível em **todos** os projetos, como `/doc-agent:document`.
+Cada release publicada na `main` chega sozinha, na sessão seguinte do Claude Code — sem
+Node e sem `npx` no caminho.
+
+### Como skill, em um projeto só
 
 ```bash
 npx skills add samuel-as/doc-agent
 ```
 
-Ou clone e use a pasta do repositório direto:
+Coloca a skill no projeto atual, como `/document`. Precisa de `npx` (ou seja, Node
+instalado) e entrega uma cópia congelada: para ir para uma versão nova, rode o comando de
+novo.
+
+### Sem Node, sem npx
+
+Clone o repositório e abra o Claude Code nessa pasta:
 
 ```bash
 git clone https://github.com/samuel-as/doc-agent.git
 ```
 
-De um jeito ou de outro, abra o Claude Code nessa pasta e a skill `/document` está
-disponível.
+Ou, sem git também: baixe o ZIP do repositório no GitHub ("Code" → "Download ZIP") e
+copie de dentro dele a pasta `.claude/skills/document` para `.claude/skills/` do seu
+projeto. A skill é autocontida — ela carrega o próprio bootstrap de runtime.
 
 ## Uso
 
@@ -60,6 +83,9 @@ disponível.
 ```
 /document vpn-ticket-request
 ```
+
+(instalado como plugin, o comando é `/doc-agent:document vpn-ticket-request` — o resto
+deste README escreve `/document` para encurtar)
 
 O que acontece:
 
@@ -150,6 +176,7 @@ quanto na gravação bruta (`docs/<slug>/sessions/`).
 ## Organização do repositório
 
 ```
+.claude-plugin/marketplace.json   ← faz do repositório um marketplace do Claude Code
 .claude/skills/document/          ← a skill (autocontida, viaja inteira via npx)
 ├── SKILL.md                      ← fluxo de gravar + regerar
 ├── references/write-doc.md       ← como a documentação é escrita
@@ -162,8 +189,8 @@ tools/recorder/                   ← código-fonte do gravador, testes e smokes
 docs/superpowers/                 ← specs de design e planos de implementação
 ```
 
-O bundle é versionado de propósito: é o que faz tanto o `npx skills add` quanto o
-clone-e-use funcionarem sem `npm install`.
+O bundle é versionado de propósito: é o que faz a instalação como plugin, o
+`npx skills add` e o clone-e-use funcionarem sem `npm install`.
 
 ## Desenvolvimento
 
@@ -184,6 +211,9 @@ npm run smoke:pdf      # exportação para PDF
   rejeita a mudança.
 - Para atualizar o Node portátil: edite `$NodeVersion` em
   `.claude/skills/document/scripts/bootstrap.ps1`.
+- Vai lançar uma release? A versão vive em dois arquivos — `tools/recorder/package.json` e
+  a entrada do plugin em `.claude-plugin/marketplace.json`. O CI falha quando os dois
+  discordam, porque a instalação como plugin só pega a versão nova quando esse número muda.
 
 ## Resolução de problemas
 

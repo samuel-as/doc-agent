@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) —
 versions follow [SemVer](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- **Installable as a Claude Code plugin**: `.claude-plugin/marketplace.json` turns the
+  repository into a marketplace, so `/plugin marketplace add samuel-as/doc-agent` +
+  `/plugin install doc-agent@doc-agent` installs the skill in every project — with no
+  Node and no `npx`, and picking up each new release published on `main` on its own. As a
+  plugin the skill is invoked as `/doc-agent:document`.
+- CI gate: the plugin version in `.claude-plugin/marketplace.json` must match
+  `tools/recorder/package.json`. A release whose number did not change never reaches
+  installed plugins, so the two are kept in step.
+
+### Changed
+
+- READMEs (EN and pt-BR): the Install section now covers the three paths — plugin,
+  `npx skills add`, and clone/ZIP for machines without Node or git. CONTRIBUTING records
+  that a release merge into `main` publishes to plugin users.
+
 ## [0.3.0] — 2026-09-16
 
 ### Added

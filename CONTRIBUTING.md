@@ -8,8 +8,13 @@ below are everything you need.
 - **`dev`** is the development trunk — open every PR against it (features, fixes,
   dependency bumps). The `[Unreleased]` section of the CHANGELOG grows here.
 - **`main`** always mirrors the latest release: it only receives release merges from
-  `dev`, each one tagged (`vX.Y.Z`). Users installing via `npx skills add` get `main`,
-  so they only ever receive released states.
+  `dev`, each one tagged (`vX.Y.Z`). Users installing via `npx skills add` or as a plugin
+  get `main`, so they only ever receive released states.
+
+Because plugin installs follow `main`, a release merge is a publication: bump the version
+in **both** `tools/recorder/package.json` and the plugin entry of
+`.claude-plugin/marketplace.json` (CI fails when they disagree). Claude Code only pulls a
+new plugin version when that number changes.
 
 ## Where the code lives
 
@@ -17,6 +22,7 @@ below are everything you need.
 |---|---|
 | `tools/recorder/` | recorder source, tests and build — the only place you run npm |
 | `.claude/skills/document/` | the skill: SKILL.md, `references/write-doc.md`, `scripts/bootstrap.ps1`, LICENSE.txt |
+| `.claude-plugin/marketplace.json` | marketplace manifest — points the plugin at the skill folder above |
 | `.claude/skills/document/scripts/doc-agent.mjs` | committed bundle, **generated** — never edit by hand |
 | `.claude/skills/document/THIRD-PARTY-NOTICES.md` | **generated** by the build — never edit by hand |
 
