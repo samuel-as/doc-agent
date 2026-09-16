@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) —
 versions follow [SemVer](https://semver.org).
 
-## [Unreleased]
+## [0.3.0] — 2026-09-16
 
 ### Added
 
@@ -24,11 +24,14 @@ versions follow [SemVer](https://semver.org).
   `sensitiveReason`.
 - New smoke `npm run smoke:dynamic` (shadow DOM + SPA settle); security smoke covers every
   sensitive category.
+- `README.pt-BR.md`: the README in Brazilian Portuguese, cross-linked with the English one.
 
 ### Changed
 
 - **Screens with a password field now get screenshots**, with the sensitive fields redacted.
   Previously the whole screenshot was suppressed.
+- Bundled dependencies updated: `playwright-core` 1.62.1 → 1.63.0 (CDP) and `marked`
+  18.0.11 → 18.0.13 (markdown → PDF rendering).
 
 ### Fixed
 
@@ -43,6 +46,9 @@ versions follow [SemVer](https://semver.org).
   focused no longer takes the page text as its label.
 - `scrolled` survives a fill started with a click (the focus event right after used to
   clear it), and a sensitive field left empty no longer produces a "fill in" step.
+- Steps come out in the order they happened: events are sorted by timestamp before
+  consolidation (an event whose capture took longer used to jump ahead), and a navigation
+  is timestamped when it happens instead of after the settle.
 
 ## [0.2.1] — 2026-09-04
 
