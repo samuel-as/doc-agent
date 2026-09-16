@@ -99,6 +99,13 @@ Committing that folder (or not) is your decision — doc-agent never touches you
 (override with the `DOC_AGENT_HOME` environment variable): the portable runtime and the
 recording browser profile.
 
+The recorder follows the whole interaction: clicks (inside shadow DOM too, and on the plain
+`div`/`span` an SPA wires as a button — recognized by the pointer cursor), text typed into
+fields, dropdown selections, checkboxes and radio buttons, keyboard shortcuts, drag and
+drop, and the scroll needed to reach a control that was off-screen. After a navigation it
+waits for the new screen to be painted, so a page or an SPA route that renders late is
+captured with its content instead of its spinner.
+
 The text comes out in the imperative ("Click **Save**"), with micro-actions grouped into
 logical steps — a whole form becomes one step, not ten. It is written in the **language of
 the recorded screens**, so a Portuguese UI produces a Portuguese guide and an English UI
