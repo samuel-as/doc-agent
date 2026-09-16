@@ -163,7 +163,8 @@ Everything lives in `tools/recorder` (there you do run `npm install`):
 npm test               # unit tests (node --test), no browser needed
 npm run build          # regenerates the bundle + THIRD-PARTY-NOTICES.md — commit them along
 npm run smoke          # end-to-end pipeline (requires Chrome/Edge)
-npm run smoke:security # screenshot and URL suppression on password screens
+npm run smoke:security # sensitive values, redaction boxes and schema 2 on a login screen
+npm run smoke:dynamic  # shadow DOM + SPA settle
 npm run smoke:pdf      # PDF export
 ```
 
