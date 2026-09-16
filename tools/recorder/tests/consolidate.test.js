@@ -6,8 +6,8 @@ import { consolidate } from '../src/recorder/consolidate.js';
 function ev(kind, overrides = {}) {
   return {
     kind, ts: 1000, url: 'https://app.example.com/x', title: 'System X',
-    label: null, selector: null, isPassword: false, isEditable: false,
-    value: null, coords: null, screenshot: null, ...overrides,
+    label: null, selector: null, isSensitive: false, sensitiveReason: null, isEditable: false,
+    value: null, coords: null, screenshot: null, sensitiveRects: [], ...overrides,
   };
 }
 
@@ -66,15 +66,16 @@ test('field-commit with an empty value is dropped (clicked in and left without t
   assert.equal(steps.length, 0);
 });
 
-test('password: the fill step exists, but value is null even if something leaks into the event', () => {
+test('sensitive field: the fill step exists, value is null even if something leaks, reason is kept', () => {
   const steps = consolidate([
-    ev('field-commit', { selector: '#pwd', label: 'Password', isPassword: true, value: 'leaked!' }),
+    ev('field-commit', { selector: '#otp', label: 'Verification code', isSensitive: true, sensitiveReason: 'otp', value: 'leaked!' }),
   ]);
   assert.equal(steps.length, 1);
   assert.equal(steps[0].type, 'fill');
   assert.equal(steps[0].value, null);
-  assert.equal(steps[0].isPassword, true);
-  assert.equal(steps[0].label, 'Password');
+  assert.equal(steps[0].isSensitive, true);
+  assert.equal(steps[0].sensitiveReason, 'otp');
+  assert.equal(steps[0].label, 'Verification code');
 });
 
 test('a repeated field-commit (same selector and value, no new focus) becomes one fill step', () => {
@@ -142,4 +143,128 @@ test('indexes are sequential 1..n in event order', () => {
     ev('click', { selector: '#b', ts: 3000 }),
   ]);
   assert.deepEqual(steps.map((s) => s.index), [1, 2, 3]);
+});
+
+test('fill inherits the sensitiveRects of the focus event that provided its screenshot', () => {
+  const rects = [{ x: 1, y: 2, w: 3, h: 4, reason: 'password' }];
+  const steps = consolidate([
+    ev('click', { selector: '#user', isEditable: true, screenshot: 'shots/raw-001.png', sensitiveRects: rects }),
+    ev('field-commit', { selector: '#user', value: 'demo', sensitiveRects: [] }),
+  ]);
+  assert.deepEqual(steps[0].sensitiveRects, rects);
+});
+
+test('check becomes a step with on/off value; repeats within 500ms collapse', () => {
+  const steps = consolidate([
+    ev('check', { selector: '#urgent', label: 'Urgent', value: 'on', ts: 1000, coords: { x: 3, y: 4 }, screenshot: 'shots/raw-001.png' }),
+    ev('check', { selector: '#urgent', label: 'Urgent', value: 'on', ts: 1200 }),
+    ev('check', { selector: '#urgent', label: 'Urgent', value: 'off', ts: 3000 }),
+  ]);
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0].type, 'check');
+  assert.equal(steps[0].value, 'on');
+  assert.deepEqual(steps[0].coords, { x: 3, y: 4 });
+  assert.equal(steps[1].value, 'off');
+});
+
+test('shortcut becomes a step with the combo as value; repeats within 500ms collapse', () => {
+  const steps = consolidate([
+    ev('shortcut', { value: 'Ctrl+S', ts: 1000, screenshot: 'shots/raw-001.png' }),
+    ev('shortcut', { value: 'Ctrl+S', ts: 1300 }),
+  ]);
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].type, 'shortcut');
+  assert.equal(steps[0].value, 'Ctrl+S');
+  assert.equal(steps[0].screenshot, 'shots/raw-001.png');
+});
+
+test('drag-start + drag become one drag step with the screenshot/coords of the start and the drop target', () => {
+  const steps = consolidate([
+    ev('drag-start', { label: 'Task A', selector: '#item-a', coords: { x: 10, y: 10 }, screenshot: 'shots/raw-001.png', ts: 1000 }),
+    ev('drag', { label: 'Task A', selector: '#item-a', target: 'Done', ts: 1500 }),
+  ]);
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].type, 'drag');
+  assert.equal(steps[0].label, 'Task A');
+  assert.equal(steps[0].target, 'Done');
+  assert.equal(steps[0].screenshot, 'shots/raw-001.png');
+  assert.deepEqual(steps[0].coords, { x: 10, y: 10 });
+});
+
+test('a drag-start without a drop produces no step', () => {
+  assert.equal(consolidate([ev('drag-start', { selector: '#a' })]).length, 0);
+});
+
+test('scrolled: true when the click happened after scrolling more than half a viewport on the same page', () => {
+  const steps = consolidate([
+    ev('click', { selector: '#a', ts: 1000, scrollY: 0, viewportH: 800 }),
+    ev('click', { selector: '#b', ts: 2000, scrollY: 900, viewportH: 800 }),
+    ev('click', { selector: '#c', ts: 3000, scrollY: 1000, viewportH: 800 }), // only 100px further
+  ]);
+  assert.equal(steps[0].scrolled, false);
+  assert.equal(steps[1].scrolled, true);
+  assert.equal(steps[2].scrolled, false);
+});
+
+test('scrolled resets on navigation and is tracked per page (URL without query/hash)', () => {
+  const steps = consolidate([
+    ev('click', { selector: '#a', ts: 1000, scrollY: 0, viewportH: 800, url: 'https://x/list' }),
+    ev('navigation', { ts: 1500, url: 'https://x/detail?id=1' }),
+    ev('click', { selector: '#b', ts: 2000, scrollY: 900, viewportH: 800, url: 'https://x/detail?id=1' }), // first action on the page
+    ev('click', { selector: '#c', ts: 3000, scrollY: 0, viewportH: 800, url: 'https://x/detail?id=1' }),   // scrolled back up
+  ]);
+  assert.equal(steps[2].scrolled, false);
+  assert.equal(steps[3].scrolled, true);
+});
+
+test('fill uses the scroll of the focus event, not of the commit', () => {
+  const steps = consolidate([
+    ev('click', { selector: '#a', ts: 1000, scrollY: 0, viewportH: 800 }),
+    ev('click', { selector: '#notes', isEditable: true, ts: 2000, scrollY: 900, viewportH: 800 }),
+    ev('field-commit', { selector: '#notes', value: 'ok', ts: 3000, scrollY: 0, viewportH: 800 }),
+  ]);
+  assert.equal(steps[1].type, 'fill');
+  assert.equal(steps[1].scrolled, true);
+});
+
+test('steps do not expose scrollY/viewportH/isEditable', () => {
+  const [s] = consolidate([ev('click', { selector: '#a', scrollY: 10, viewportH: 800, isEditable: false })]);
+  assert.ok(!('scrollY' in s) && !('viewportH' in s) && !('isEditable' in s));
+});
+
+test('the raw child-frame marker does not reach the step', () => {
+  const steps = consolidate([ev('click', { selector: '#a', frame: 'child' })]);
+  assert.equal(steps[0].frame, undefined);
+});
+
+test('a fill done with the mouse keeps its scrolled flag: the focusin right after must not clear it', () => {
+  const steps = consolidate([
+    ev('click', { selector: '#a', ts: 1000, scrollY: 0, viewportH: 800 }),
+    // Chrome fires focusin right after the mousedown, with the same scroll position
+    ev('click', { selector: '#f', isEditable: true, ts: 2000, scrollY: 1500, viewportH: 800, screenshot: 'shots/raw-002.png', coords: { x: 5, y: 6 } }),
+    ev('field-focus', { selector: '#f', ts: 2010, scrollY: 1500, viewportH: 800 }),
+    ev('field-commit', { selector: '#f', ts: 2500, value: 'typed' }),
+  ]);
+  const fill = steps.find((s) => s.type === 'fill');
+  assert.equal(fill.scrolled, true);
+  assert.equal(fill.screenshot, 'shots/raw-002.png'); // the click's capture, not the focus's
+  assert.deepEqual(fill.coords, { x: 5, y: 6 });
+});
+
+test('a sensitive field the user only tabbed through produces no fill step', () => {
+  const steps = consolidate([
+    ev('click', { selector: '#phone', isEditable: true, isSensitive: true, sensitiveReason: 'phone' }),
+    ev('field-commit', { selector: '#phone', label: 'Phone', isSensitive: true, sensitiveReason: 'phone', value: null, hasValue: false, ts: 1200 }),
+  ]);
+  assert.equal(steps.length, 0);
+});
+
+test('a sensitive field that was filled produces one fill step with a null value', () => {
+  const steps = consolidate([
+    ev('field-commit', { selector: '#phone', label: 'Phone', isSensitive: true, sensitiveReason: 'phone', value: null, hasValue: true }),
+  ]);
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].type, 'fill');
+  assert.equal(steps[0].value, null);
+  assert.equal(steps[0].hasValue, undefined); // internal: must not reach the step
 });

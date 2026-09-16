@@ -132416,10 +132416,10 @@ Workaround: Set the HOME=/root environment variable${process.env.GITHUB_ACTION ?
         init_debugLogger();
         init_network();
         SyncServer = class _SyncServer {
-          constructor(server2, baseUrl) {
+          constructor(server2, baseUrl2) {
             this._handlers = /* @__PURE__ */ new Map();
             this._server = server2;
-            this._baseUrl = baseUrl;
+            this._baseUrl = baseUrl2;
             this._server.on("request", (req, res) => this._handleRequest(req, res));
           }
           static async start() {
@@ -160234,45 +160234,101 @@ function consolidate(events) {
   const steps = [];
   const focusBySelector = /* @__PURE__ */ new Map();
   const lastCommitBySelector = /* @__PURE__ */ new Map();
+  const lastScrollByPage = /* @__PURE__ */ new Map();
   let lastClick = null;
   let lastNav = null;
+  let lastCheck = null;
+  let lastShortcut = null;
+  let pendingDrag = null;
+  const scrolledFlag = (ev) => {
+    if (typeof ev.scrollY !== "number") return false;
+    const key = baseUrl(ev.url);
+    const prev = lastScrollByPage.get(key);
+    lastScrollByPage.set(key, ev.scrollY);
+    if (prev == null) return false;
+    const half = (ev.viewportH ?? 0) / 2;
+    return half > 0 && Math.abs(ev.scrollY - prev) > half;
+  };
   for (const ev of events) {
     switch (ev.kind) {
-      case "field-focus":
-        focusBySelector.set(ev.selector, ev);
+      case "field-focus": {
+        const prev = focusBySelector.get(ev.selector);
+        const scrolled = scrolledFlag(ev);
+        const sameInteraction = prev && Math.abs(ev.ts - prev.ts) < CLICK_DEDUP_MS;
+        const shotFrom = sameInteraction && prev.screenshot ? prev : ev;
+        focusBySelector.set(ev.selector, {
+          ...ev,
+          scrolled: sameInteraction ? scrolled || prev.scrolled : scrolled,
+          screenshot: shotFrom.screenshot,
+          coords: shotFrom.coords,
+          sensitiveRects: shotFrom.sensitiveRects
+        });
         lastCommitBySelector.delete(ev.selector);
         break;
+      }
       case "click": {
         if (ev.isEditable) {
-          focusBySelector.set(ev.selector, ev);
+          focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev) });
           lastCommitBySelector.delete(ev.selector);
           break;
         }
+        const scrolled = scrolledFlag(ev);
         if (lastClick && lastClick.selector === ev.selector && ev.ts - lastClick.ts < CLICK_DEDUP_MS) break;
         lastClick = ev;
-        steps.push(makeStep("click", ev, { screenshot: ev.screenshot, coords: ev.coords }));
+        steps.push(makeStep("click", ev, { screenshot: ev.screenshot, coords: ev.coords, scrolled }));
         break;
       }
       case "field-commit": {
-        if (!ev.isPassword && (ev.value == null || ev.value === "")) break;
+        const empty = ev.isSensitive ? ev.hasValue === false : ev.value == null || ev.value === "";
+        if (empty) break;
         if (lastCommitBySelector.has(ev.selector) && lastCommitBySelector.get(ev.selector) === ev.value) break;
         lastCommitBySelector.set(ev.selector, ev.value);
         const focus = focusBySelector.get(ev.selector) ?? null;
         steps.push(makeStep("fill", ev, {
-          value: ev.isPassword ? null : ev.value,
+          value: ev.isSensitive ? null : ev.value,
           screenshot: focus?.screenshot ?? ev.screenshot ?? null,
-          coords: focus?.coords ?? null
+          coords: focus?.coords ?? null,
+          sensitiveRects: focus?.screenshot ? focus.sensitiveRects ?? [] : ev.sensitiveRects ?? [],
+          scrolled: focus ? focus.scrolled : scrolledFlag(ev)
         }));
         focusBySelector.delete(ev.selector);
         break;
       }
       case "select":
-        steps.push(makeStep("select", ev, { value: ev.value, screenshot: ev.screenshot }));
+        steps.push(makeStep("select", ev, { value: ev.value, screenshot: ev.screenshot, scrolled: scrolledFlag(ev) }));
         break;
+      case "check": {
+        const scrolled = scrolledFlag(ev);
+        if (lastCheck && lastCheck.selector === ev.selector && lastCheck.value === ev.value && ev.ts - lastCheck.ts < CLICK_DEDUP_MS) break;
+        lastCheck = ev;
+        steps.push(makeStep("check", ev, { value: ev.value, screenshot: ev.screenshot, coords: ev.coords, scrolled }));
+        break;
+      }
+      case "shortcut": {
+        if (lastShortcut && lastShortcut.value === ev.value && ev.ts - lastShortcut.ts < CLICK_DEDUP_MS) break;
+        lastShortcut = ev;
+        steps.push(makeStep("shortcut", ev, { value: ev.value, screenshot: ev.screenshot }));
+        break;
+      }
+      case "drag-start":
+        pendingDrag = ev;
+        break;
+      case "drag": {
+        const start3 = pendingDrag;
+        pendingDrag = null;
+        steps.push(makeStep("drag", ev, {
+          target: ev.target ?? null,
+          screenshot: start3?.screenshot ?? null,
+          coords: start3?.coords ?? null,
+          sensitiveRects: start3?.sensitiveRects ?? []
+        }));
+        break;
+      }
       case "enter":
         steps.push(makeStep("enter", ev, { screenshot: null }));
         break;
       case "navigation": {
+        lastScrollByPage.delete(baseUrl(ev.url));
         if (lastNav && lastNav.url === ev.url && ev.ts - lastNav.ts < NAV_DEDUP_MS) break;
         lastNav = ev;
         steps.push(makeStep("navigation", ev, { screenshot: ev.screenshot }));
@@ -160291,17 +160347,21 @@ function makeStep(type3, ev, extra) {
     url: ev.url,
     title: ev.title ?? null,
     ts: ev.ts,
-    isPassword: ev.isPassword ?? false,
+    isSensitive: ev.isSensitive ?? false,
+    sensitiveReason: ev.isSensitive ? ev.sensitiveReason ?? null : null,
     coords: null,
     screenshot: null,
+    sensitiveRects: ev.sensitiveRects ?? [],
+    // internal: consumed by session.finalize, then dropped
     ...extra
   };
 }
-var CLICK_DEDUP_MS, NAV_DEDUP_MS;
+var CLICK_DEDUP_MS, NAV_DEDUP_MS, baseUrl;
 var init_consolidate = __esm2({
   "src/recorder/consolidate.js"() {
     CLICK_DEDUP_MS = 500;
     NAV_DEDUP_MS = 1e3;
+    baseUrl = (u) => String(u ?? "").split(/[?#]/)[0];
   }
 });
 
@@ -162420,7 +162480,27 @@ async function drawMarker(inputPng, { x: x2, y: y2 }) {
   }
   return import_pngjs.PNG.sync.write(png);
 }
-var import_pngjs, RADIUS, STROKE, COLOR, FILL_ALPHA;
+async function drawRedaction(inputPng, rects) {
+  const png = import_pngjs.PNG.sync.read(inputPng);
+  const { width, height, data } = png;
+  for (const r of rects) {
+    const x0 = Math.max(0, Math.floor(r.x - REDACT_PAD));
+    const y0 = Math.max(0, Math.floor(r.y - REDACT_PAD));
+    const x1 = Math.min(width - 1, Math.ceil(r.x + r.w + REDACT_PAD) - 1);
+    const y1 = Math.min(height - 1, Math.ceil(r.y + r.h + REDACT_PAD) - 1);
+    for (let py = y0; py <= y1; py++) {
+      for (let px = x0; px <= x1; px++) {
+        const i = width * py + px << 2;
+        data[i] = REDACT.r;
+        data[i + 1] = REDACT.g;
+        data[i + 2] = REDACT.b;
+        data[i + 3] = 255;
+      }
+    }
+  }
+  return import_pngjs.PNG.sync.write(png);
+}
+var import_pngjs, RADIUS, STROKE, COLOR, FILL_ALPHA, REDACT, REDACT_PAD;
 var init_marker = __esm2({
   "src/recorder/marker.js"() {
     import_pngjs = __toESM2(require_png(), 1);
@@ -162428,6 +162508,8 @@ var init_marker = __esm2({
     STROKE = 4;
     COLOR = { r: 224, g: 36, b: 94 };
     FILL_ALPHA = 0.25;
+    REDACT = { r: 43, g: 43, b: 43 };
+    REDACT_PAD = 2;
   }
 });
 
@@ -162464,39 +162546,181 @@ var init_session2 = __esm2({
       async addEvent(ev, screenshotBuffer = null) {
         let screenshot4 = null;
         if (screenshotBuffer) {
-          this.rawCount += 1;
-          screenshot4 = `shots/raw-${String(this.rawCount).padStart(3, "0")}.png`;
-          await fs2.writeFile(path2.join(this.dir, screenshot4), screenshotBuffer);
+          let buf = screenshotBuffer;
+          const rects = ev.sensitiveRects ?? [];
+          let ok = true;
+          if (rects.length) {
+            try {
+              buf = await drawRedaction(buf, rects);
+            } catch {
+              ok = false;
+            }
+          }
+          if (ok) {
+            this.rawCount += 1;
+            screenshot4 = `shots/raw-${String(this.rawCount).padStart(3, "0")}.png`;
+            await fs2.writeFile(path2.join(this.dir, screenshot4), buf);
+          }
         }
         this.events.push({ ...ev, screenshot: screenshot4 });
       }
       async finalize() {
-        const steps = consolidate(this.events);
+        const orderedEvents = [...this.events].sort((a, b2) => a.ts - b2.ts);
+        const steps = consolidate(orderedEvents);
         const finalSteps = [];
         for (const step of steps) {
-          let finalShot = null;
-          if (step.screenshot) {
-            finalShot = `shots/step-${String(step.index).padStart(3, "0")}.png`;
-            let buf = await fs2.readFile(path2.join(this.dir, step.screenshot));
-            if (step.coords) {
-              try {
-                buf = await drawMarker(buf, step.coords);
-              } catch {
-              }
-            }
-            await fs2.writeFile(path2.join(this.dir, finalShot), buf);
-          }
-          const { coords, screenshot: screenshot4, ...rest } = step;
+          const finalShot = step.screenshot ? await this._renderShot(step) : null;
+          const { coords, screenshot: screenshot4, sensitiveRects, ...rest } = step;
           finalSteps.push({ ...rest, screenshot: finalShot });
         }
-        for (const f2 of await fs2.readdir(this.shotsDir)) {
-          if (f2.startsWith("raw-")) await fs2.rm(path2.join(this.shotsDir, f2));
+        for (const f2 of await fs2.readdir(this.shotsDir).catch(() => [])) {
+          if (f2.startsWith("raw-")) await fs2.rm(path2.join(this.shotsDir, f2)).catch(() => {
+          });
         }
-        const session2 = { name: this.name, createdAt: (/* @__PURE__ */ new Date()).toISOString(), steps: finalSteps };
+        const session2 = { schema: 2, name: this.name, createdAt: (/* @__PURE__ */ new Date()).toISOString(), steps: finalSteps };
         await fs2.writeFile(path2.join(this.dir, "session.json"), JSON.stringify(session2, null, 2));
         return this.dir;
       }
+      // Final image of a step: the click marker on top of the already-redacted raw capture,
+      // saved as shots/step-NNN.png. Returns null on any failure — one step without an image
+      // must not abort the rest of the recording.
+      async _renderShot(step) {
+        try {
+          let buf = await fs2.readFile(path2.join(this.dir, step.screenshot));
+          if (step.coords) {
+            try {
+              buf = await drawMarker(buf, step.coords);
+            } catch {
+            }
+          }
+          const finalShot = `shots/step-${String(step.index).padStart(3, "0")}.png`;
+          await fs2.writeFile(path2.join(this.dir, finalShot), buf);
+          return finalShot;
+        } catch {
+          return null;
+        }
+      }
     };
+  }
+});
+
+// src/recorder/sensitivity.js
+function createSensitivity() {
+  const splitCamel = (s) => String(s ?? "").replace(/([a-z])([A-Z])/g, "$1 $2");
+  const norm = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const words = (list) => new RegExp("(^| )(" + list.join("|") + ")( |$)");
+  const PASSWORD = words(["senha", "password", "passwd", "pwd", "pass", "contrasena", "kennwort", "mot de passe"]);
+  const OTP = words([
+    "otp",
+    "otpcode",
+    "totp",
+    "mfa",
+    "2fa",
+    "twofa",
+    "twofactor",
+    "two factor",
+    "onetime",
+    "one time",
+    "verification code",
+    "codigo de verificacao",
+    "codigo verificacao",
+    "codigo de seguranca",
+    "codigo seguranca",
+    "token",
+    "pin"
+  ]);
+  const OTP_EXCLUDE = /promo|cupom|coupon|(^| )cep( |$)|postal|zip|bank|barcode/;
+  const OTP_TYPES = ["text", "number", "tel", "password"];
+  const CARD = words([
+    "cvv",
+    "cvc",
+    "csc",
+    "cvn",
+    "ccv",
+    "cid",
+    "card number",
+    "cardnumber",
+    "numero do cartao",
+    "numero cartao",
+    "tarjeta",
+    "carte"
+  ]);
+  const DOCUMENT = words([
+    "cpf",
+    "cnpj",
+    "cpf cnpj",
+    "cpfcnpj",
+    "documento",
+    "rg",
+    "passaporte",
+    "passport",
+    "nif",
+    "dni",
+    "ssn",
+    "tax id"
+  ]);
+  const PHONE = words(["telefone", "celular", "fone", "phone", "mobile", "telemovel", "telefono", "whatsapp"]);
+  const luhn = (d) => {
+    let sum = 0, dbl = false;
+    for (let i = d.length - 1; i >= 0; i--) {
+      let n = d.charCodeAt(i) - 48;
+      if (dbl) {
+        n *= 2;
+        if (n > 9) n -= 9;
+      }
+      sum += n;
+      dbl = !dbl;
+    }
+    return sum % 10 === 0;
+  };
+  const allSame = (d) => /^(\d)\1+$/.test(d);
+  const cpfValid = (d) => {
+    if (d.length !== 11 || allSame(d)) return false;
+    const dv = (len) => {
+      let s = 0;
+      for (let i = 0; i < len; i++) s += (d.charCodeAt(i) - 48) * (len + 1 - i);
+      const r = s * 10 % 11;
+      return r === 10 ? 0 : r;
+    };
+    return dv(9) === d.charCodeAt(9) - 48 && dv(10) === d.charCodeAt(10) - 48;
+  };
+  const cnpjValid = (d) => {
+    if (d.length !== 14 || allSame(d)) return false;
+    const dv = (len) => {
+      const w = len === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      let s = 0;
+      for (let i = 0; i < len; i++) s += (d.charCodeAt(i) - 48) * w[i];
+      const r = s % 11;
+      return r < 2 ? 0 : 11 - r;
+    };
+    return dv(12) === d.charCodeAt(12) - 48 && dv(13) === d.charCodeAt(13) - 48;
+  };
+  return function sensitivityOf2(field) {
+    const f2 = field || {};
+    const type3 = String(f2.type || "text").toLowerCase();
+    const ac = norm(f2.autocomplete);
+    const names = norm([f2.name, f2.id, f2.placeholder, f2.ariaLabel, f2.labelText].map(splitCamel).join(" "));
+    const value2 = String(f2.value ?? "");
+    const digits = value2.replace(/\D/g, "");
+    const numericLike = /^[\d\s.\-\/]+$/.test(value2.trim()) && digits.length > 0;
+    if (type3 === "password" || ac === "current password" || ac === "new password") return "password";
+    if (ac === "one time code") return "otp";
+    if (ac === "cc" || ac.indexOf("cc ") === 0) return "card";
+    if (ac === "tel" || ac === "tel national" || ac === "tel local") return "phone";
+    if (PASSWORD.test(names)) return "password";
+    if (OTP.test(names) && !OTP_EXCLUDE.test(names) && OTP_TYPES.indexOf(type3) >= 0) return "otp";
+    if (CARD.test(names) || /(^| )validade( |$)/.test(names) && /cartao/.test(names)) return "card";
+    if (DOCUMENT.test(names)) return "document";
+    if (PHONE.test(names) || type3 === "tel") return "phone";
+    if (numericLike && digits.length >= 13 && digits.length <= 19 && luhn(digits)) return "card";
+    if (numericLike && (cpfValid(digits) || cnpjValid(digits))) return "document";
+    return null;
+  };
+}
+var sensitivityOf;
+var init_sensitivity = __esm2({
+  "src/recorder/sensitivity.js"() {
+    sensitivityOf = createSensitivity();
   }
 });
 
@@ -162506,11 +162730,29 @@ function buildInitScript() {
     if (window.__docAgentInstalled) return;
     window.__docAgentInstalled = true;
 
+    // Timestamp of the last DOM mutation, read by the recorder to decide when a page has
+    // finished rendering (SETTLE_EXPR in recorder.js). The observer lives here, installed
+    // with the script at document start, so nothing that happens before the recorder asks
+    // is missed.
+    window.__docAgentLastMutation = Date.now();
+    try {
+      new MutationObserver(() => { window.__docAgentLastMutation = Date.now(); })
+        .observe(document, { subtree: true, childList: true, attributes: true });
+    } catch (e) {}
+
+    // Sensitive-field classifier, inlined from src/recorder/sensitivity.js (pure, self-contained).
+    const sensitivityOf = (${createSensitivity.toString()})();
+
     const send = (payload) => {
       try { window.${BINDING}(JSON.stringify(payload)); } catch (e) {}
     };
 
-    const pageHasPassword = () => !!document.querySelector('input[type="password"]');
+    // Shadow DOM: e.target is retargeted to the host; composedPath()[0] is the real element.
+    const target = (e) => {
+      const p = e.composedPath ? e.composedPath() : null;
+      const t = (p && p.length ? p[0] : e.target) || null;
+      return t && t.nodeType === 1 ? t : (t && t.parentElement) || null;
+    };
 
     const isEditable = (el) => {
       if (!el || !el.tagName) return false;
@@ -162523,6 +162765,8 @@ function buildInitScript() {
       return false;
     };
 
+    const isToggle = (el) => el && el.tagName === 'INPUT' && ['checkbox','radio'].includes((el.type || '').toLowerCase());
+
     const labelFor = (el) => {
       if (!el || !el.getAttribute) return null;
       if (el.labels && el.labels.length) {
@@ -162533,6 +162777,9 @@ function buildInitScript() {
         const v = el.getAttribute(attr);
         if (v && v.trim()) return v.trim().slice(0, 80);
       }
+      // In a contenteditable, innerText IS the content the user typed: commit() masks the
+      // value of a sensitive field, and reading it here would ship the same text as label.
+      if (el.isContentEditable) return null;
       // el.value only works as a label on button-like inputs (<input type="submit" value="...">);
       // never on editable fields \u2014 otherwise the typed value (a password, even) becomes the label.
       const isButtonLike = el.tagName === 'INPUT' &&
@@ -162559,75 +162806,159 @@ function buildInitScript() {
       return parts.join(' > ');
     };
 
+    const fieldInfo = (el, value) => ({
+      type: el.type, autocomplete: el.getAttribute('autocomplete'), name: el.getAttribute('name'), id: el.id,
+      placeholder: el.getAttribute('placeholder'), ariaLabel: el.getAttribute('aria-label'),
+      labelText: el.labels && el.labels.length ? el.labels[0].innerText : null, value: value,
+    });
+
+    const rectOf = (el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return null;
+      if (r.bottom < 0 || r.right < 0 || r.top > window.innerHeight || r.left > window.innerWidth) return null;
+      return { x: r.left, y: r.top, w: r.width, h: r.height };
+    };
+
+    // Rects of every VISIBLE sensitive field right now \u2014 the recorder paints them over.
+    // Light DOM only via querySelectorAll; the event target is added so a field inside a
+    // shadow root is covered at least when it is the one being used.
+    const sensitiveRects = (extra) => {
+      const els = Array.prototype.slice.call(document.querySelectorAll('input, textarea'));
+      if (extra && (extra.tagName === 'INPUT' || extra.tagName === 'TEXTAREA') && els.indexOf(extra) < 0) els.push(extra);
+      const out = [];
+      for (const el of els) {
+        const reason = sensitivityOf(fieldInfo(el, el.value));
+        if (!reason) continue;
+        const r = rectOf(el);
+        if (r) out.push({ x: r.x, y: r.y, w: r.w, h: r.h, reason: reason });
+      }
+      return out;
+    };
+    window.__docAgentSensitiveRects = () => sensitiveRects(null);
+
+    const base = (kind, el) => ({
+      kind: kind, ts: Date.now(),
+      label: el ? labelFor(el) : null, selector: el ? cssPath(el) : null,
+      scrollY: window.scrollY, viewportH: window.innerHeight,
+      sensitiveRects: sensitiveRects(el),
+      // Drives the URL rule in the recorder. Unlike the rects, this does not depend on
+      // visibility: a password field scrolled out of view or hidden behind a step of the
+      // form still makes this a login screen.
+      hasPasswordField: !!document.querySelector('input[type="password"]'),
+    });
+
     const INTERACTIVE = 'a, button, [role="button"], [role="menuitem"], [role="tab"], [role="link"], input, select, textarea, [contenteditable="true"], [onclick], label, summary';
 
+    // Interactive ancestor: the usual closest(); otherwise up to 5 levels looking for a
+    // pointer cursor (SPAs wire clicks on plain divs/spans without a role).
+    const interactiveFrom = (el) => {
+      if (!el) return null;
+      const byClosest = el.closest ? el.closest(INTERACTIVE) : null;
+      if (byClosest) return byClosest;
+      let node = el, depth = 0;
+      while (node && node.nodeType === 1 && depth < 5) {
+        if (node === document.body || node === document.documentElement) return null;
+        if (getComputedStyle(node).cursor === 'pointer') return node;
+        node = node.parentElement; depth++;
+      }
+      return null;
+    };
+
+    // Keyboard events with nothing focused land on document.body, and labelFor(body) is
+    // 80 characters of the page text \u2014 not a label. Only a real control names a step.
+    const focusTarget = (el) => (el && (isEditable(el) || interactiveFrom(el)) ? el : null);
+
     document.addEventListener('mousedown', (e) => {
-      const el = e.target && e.target.closest ? e.target.closest(INTERACTIVE) : null;
+      if (e.button !== 0) return;
+      const el = interactiveFrom(target(e));
       if (!el) return;                       // click on empty space: noise
       if (el.tagName === 'SELECT') return;   // dropdowns are handled on change
+      if (isToggle(el)) return;              // checkbox/radio are handled on change
+      if (el.tagName === 'LABEL' && isToggle(el.control)) return; // same: the change event carries the step
+      const reason = isEditable(el) ? sensitivityOf(fieldInfo(el, '')) : null;
       send({
-        kind: 'click', ts: Date.now(),
-        label: labelFor(el), selector: cssPath(el),
+        ...base('click', el),
         isEditable: isEditable(el),
-        isPassword: el.type === 'password',
+        isSensitive: !!reason, sensitiveReason: reason,
         coords: { x: e.clientX, y: e.clientY },
-        pageHasPassword: pageHasPassword(),
       });
     }, true);
 
     document.addEventListener('focusin', (e) => {
-      if (!isEditable(e.target)) return;
-      send({
-        kind: 'field-focus', ts: Date.now(),
-        label: labelFor(e.target), selector: cssPath(e.target),
-        isPassword: e.target.type === 'password',
-        pageHasPassword: pageHasPassword(),
-      });
+      const t = target(e);
+      if (!isEditable(t)) return;
+      const reason = sensitivityOf(fieldInfo(t, ''));
+      send({ ...base('field-focus', t), isSensitive: !!reason, sensitiveReason: reason });
     }, true);
 
     const commit = (el) => {
       if (!isEditable(el)) return;
-      const isPw = el.type === 'password';
-      send({
-        kind: 'field-commit', ts: Date.now(),
-        label: labelFor(el), selector: cssPath(el),
-        isPassword: isPw,
-        value: isPw ? null : (el.isContentEditable ? el.innerText : el.value),
-        pageHasPassword: pageHasPassword(),
-      });
+      const raw = el.isContentEditable ? el.innerText : el.value;
+      const reason = sensitivityOf(fieldInfo(el, raw));
+      // The value of a sensitive field never leaves the page \u2014 only whether there WAS one,
+      // so the consolidation can drop a field the user merely tabbed through.
+      send({ ...base('field-commit', el), isSensitive: !!reason, sensitiveReason: reason,
+        value: reason ? null : raw, hasValue: String(raw ?? '').length > 0 });
     };
 
-    document.addEventListener('focusout', (e) => commit(e.target), true);
+    document.addEventListener('focusout', (e) => commit(target(e)), true);
 
     document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter') return;
-      const t = e.target;
-      // In a TEXTAREA/contenteditable, Enter inserts a line break \u2014 it is not a submit:
-      // no partial commit and no 'enter' event.
-      if (t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (isEditable(t)) commit(t);
-      send({
-        kind: 'enter', ts: Date.now(),
-        label: labelFor(t), selector: null,
-        pageHasPassword: pageHasPassword(),
-      });
+      const t = target(e);
+      if (e.key === 'Enter') {
+        // In a TEXTAREA/contenteditable, Enter inserts a line break \u2014 it is not a submit:
+        // no partial commit and no 'enter' event.
+        if (t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        if (isEditable(t)) commit(t);
+        send({ ...base('enter', focusTarget(t)), selector: null });
+        return;
+      }
+      if (!(e.ctrlKey || e.altKey || e.metaKey)) return;
+      if (['Control','Alt','Meta','Shift'].includes(e.key)) return; // modifier alone
+      const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+      if (e.ctrlKey && ['C','V','A','Z'].includes(k)) return;      // copy/paste/select-all/undo are noise
+      if (!/^[A-Z0-9]$/.test(k) && !/^F([1-9]|1[0-2])$/.test(k)) return;
+      const combo = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Cmd']
+        .filter(Boolean).concat(k).join('+');
+      send({ ...base('shortcut', focusTarget(t)), value: combo });
     }, true);
 
     document.addEventListener('change', (e) => {
-      if (!e.target || e.target.tagName !== 'SELECT') return;
-      const opt = e.target.selectedOptions && e.target.selectedOptions[0];
-      send({
-        kind: 'select', ts: Date.now(),
-        label: labelFor(e.target), selector: cssPath(e.target),
-        value: opt ? opt.innerText.trim() : String(e.target.value),
-        pageHasPassword: pageHasPassword(),
-      });
+      const t = target(e);
+      if (!t) return;
+      if (t.tagName === 'SELECT') {
+        const opt = t.selectedOptions && t.selectedOptions[0];
+        send({ ...base('select', t), value: opt ? opt.innerText.trim() : String(t.value) });
+        return;
+      }
+      if (isToggle(t)) {
+        const r = t.getBoundingClientRect();
+        send({ ...base('check', t), value: t.checked ? 'on' : 'off', coords: { x: r.left + r.width / 2, y: r.top + r.height / 2 } });
+      }
     }, true);
+
+    // Drag & drop: 'drag-start' carries the screenshot/coords (the screen before the move);
+    // 'drag' (on drop) carries the destination label. The consolidation merges the two.
+    let dragging = null;
+    document.addEventListener('dragstart', (e) => {
+      const el = target(e);
+      if (!el) return;
+      dragging = { label: labelFor(el), selector: cssPath(el) };
+      send({ ...base('drag-start', el), coords: { x: e.clientX, y: e.clientY } });
+    }, true);
+    document.addEventListener('drop', (e) => {
+      if (!dragging) return;
+      const dest = interactiveFrom(target(e)) || target(e);
+      send({ ...base('drag', null), label: dragging.label, selector: dragging.selector, target: dest ? labelFor(dest) : null });
+      dragging = null;
+    }, true);
+    document.addEventListener('dragend', () => { dragging = null; }, true);
   })();`;
 }
 var BINDING;
 var init_instrument = __esm2({
   "src/recorder/instrument.js"() {
+    init_sensitivity();
     BINDING = "__docAgentEvent";
   }
 });
@@ -162635,13 +162966,26 @@ var init_instrument = __esm2({
 // src/recorder/recorder.js
 var recorder_exports = {};
 __export2(recorder_exports, {
-  Recorder: () => Recorder2
+  Recorder: () => Recorder2,
+  SETTLE_EXPR: () => SETTLE_EXPR
 });
-var NO_SCREENSHOT_KINDS, Recorder2;
+var NO_SCREENSHOT_KINDS, SETTLE_EXPR, SETTLE_NODE_CAP_MS, RECTS_EXPR, Recorder2;
 var init_recorder3 = __esm2({
   "src/recorder/recorder.js"() {
     init_instrument();
-    NO_SCREENSHOT_KINDS = /* @__PURE__ */ new Set(["enter", "field-commit"]);
+    NO_SCREENSHOT_KINDS = /* @__PURE__ */ new Set(["enter", "field-commit", "drag"]);
+    SETTLE_EXPR = `new Promise((resolve) => {
+  const quiet = 300, cap = 1500, step = 50, t0 = Date.now();
+  const tick = () => {
+    const last = window.__docAgentLastMutation || 0;
+    if (Date.now() - t0 >= cap) return resolve(true);
+    if (last > t0 && Date.now() - last >= quiet) return resolve(true);
+    setTimeout(tick, step);
+  };
+  tick();
+})`;
+    SETTLE_NODE_CAP_MS = 2e3;
+    RECTS_EXPR = `(window.__docAgentSensitiveRects ? window.__docAgentSensitiveRects() : null)`;
     Recorder2 = class {
       constructor(context, session2) {
         this.context = context;
@@ -162652,14 +162996,14 @@ var init_recorder3 = __esm2({
       _stateFor(page) {
         let st2 = this._pageState.get(page);
         if (!st2) {
-          st2 = { hadPassword: false, sensitiveBase: null };
+          st2 = { hadPasswordField: false, sensitiveBase: null };
           this._pageState.set(page, st2);
         }
         return st2;
       }
       async start() {
         await this.context.exposeBinding(BINDING, (source12, payloadJson) => {
-          return this.onEvent(source12.page, JSON.parse(payloadJson)).catch(() => {
+          return this.onEvent(source12.page, JSON.parse(payloadJson), source12.frame).catch(() => {
           });
         });
         await this.context.addInitScript(buildInitScript());
@@ -162676,9 +163020,17 @@ var init_recorder3 = __esm2({
           });
         });
       }
+      async settle(page) {
+        await Promise.race([
+          page.evaluate(SETTLE_EXPR).catch(() => {
+          }),
+          new Promise((r) => setTimeout(r, SETTLE_NODE_CAP_MS))
+        ]);
+      }
       async onNavigation(page) {
+        const ts = Date.now();
         const st2 = this._stateFor(page);
-        const cameFromPassword = st2.hadPassword;
+        const cameFromPassword = st2.hadPasswordField;
         const applySensitivity = () => {
           const base = page.url().split(/[?#]/)[0];
           if (cameFromPassword) st2.sensitiveBase = base;
@@ -162687,41 +163039,50 @@ var init_recorder3 = __esm2({
         applySensitivity();
         await page.waitForLoadState("load", { timeout: 1e4 }).catch(() => {
         });
+        await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => {
+        });
+        await this.settle(page);
         await page.evaluate(buildInitScript()).catch(() => {
         });
         const hasPw = await page.evaluate(`!!document.querySelector('input[type="password"]')`).catch(() => true);
-        st2.hadPassword = hasPw;
+        st2.hadPasswordField = hasPw;
         applySensitivity();
-        const shot = hasPw || cameFromPassword ? null : await this.screenshot(page);
+        const cap = await this.screenshot(page);
         await this.session.addEvent({
           kind: "navigation",
-          ts: Date.now(),
+          ts,
           url: this._safeUrl(page),
           title: await page.title().catch(() => null),
           label: null,
           selector: null,
-          isPassword: false,
+          isSensitive: false,
+          sensitiveReason: null,
           isEditable: false,
           value: null,
-          coords: null
-        }, shot);
+          coords: null,
+          sensitiveRects: cap.rects ?? []
+        }, cap.buf);
       }
-      async onEvent(page, payload) {
-        const { pageHasPassword, ...ev } = payload;
-        this._stateFor(page).hadPassword = pageHasPassword;
-        const wantsShot = !pageHasPassword && !NO_SCREENSHOT_KINDS.has(ev.kind);
-        const shot = wantsShot ? await this.screenshot(page) : null;
+      async onEvent(page, payload, frame = null) {
+        const { hasPasswordField, ...ev } = payload;
+        this._stateFor(page).hadPasswordField = !!hasPasswordField;
+        const inChildFrame = !!frame && typeof page.mainFrame === "function" && frame !== page.mainFrame();
+        const wantsShot = !NO_SCREENSHOT_KINDS.has(ev.kind) && !inChildFrame;
+        const cap = wantsShot ? await this.screenshot(page) : null;
         await this.session.addEvent({
-          isPassword: false,
+          isSensitive: false,
+          sensitiveReason: null,
           isEditable: false,
           value: null,
           coords: null,
           label: null,
           selector: null,
           ...ev,
+          ...inChildFrame ? { frame: "child" } : null,
+          sensitiveRects: cap?.rects ?? [],
           url: this._safeUrl(page),
           title: await page.title().catch(() => null)
-        }, shot);
+        }, cap?.buf ?? null);
       }
       // Strips query/hash from the URL when THIS tab was reached from a password
       // screen (see onNavigation) — credentials never reach session.json.
@@ -162736,17 +163097,24 @@ var init_recorder3 = __esm2({
       // commit leaves Chrome unresponsive until the 3s timeout) ate the budget of every
       // capture waiting in line and they all came back null. Chaining them here, each
       // capture only calls page.screenshot() with its full budget.
+      // Resolves to { buf, rects }: the pixels and the sensitive boxes that describe THEM.
       screenshot(page) {
         const shot = this._shotChain.then(() => this._capture(page));
         this._shotChain = shot;
         return shot;
       }
       async _capture(page) {
+        let rects = null;
         try {
-          return await page.screenshot({ scale: "css", timeout: 3e3 });
+          rects = await page.evaluate(RECTS_EXPR);
+        } catch {
+        }
+        if (!Array.isArray(rects)) return { buf: null, rects: null };
+        try {
+          return { buf: await page.screenshot({ scale: "css", timeout: 3e3 }), rects };
         } catch (e) {
           if (process.env.DOC_AGENT_DEBUG) console.error("DEBUG screenshot failed:", e);
-          return null;
+          return { buf: null, rects };
         }
       }
     };

@@ -106,21 +106,36 @@ produces an English one.
 
 ## Privacy and security
 
-The recorder was designed assuming you will walk through login screens:
+The recorder was designed assuming you will walk through login screens and forms with
+personal data:
 
-- **A screen with a password field produces no screenshot.** When in doubt (inspecting the
-  page failed), it takes none either.
-- **Password values are never recorded** — the step keeps `value: null`.
+- **Sensitive values are never recorded.** Passwords, one-time/MFA codes, card numbers and
+  security codes, personal documents (CPF, CNPJ, RG, passport, SSN…) and phone numbers keep
+  `value: null` in the step. Detection uses the field's `autocomplete` attribute, its
+  name/label (in several languages, Portuguese included) and, for documents and cards, the
+  value itself (check digits / Luhn).
+- **Sensitive fields are painted over in every screenshot** with a solid box, before the
+  image is written to disk — including the temporary capture kept during the recording, so
+  an interrupted recording leaves no readable field behind. If painting fails, that step
+  gets no screenshot at all.
+- **Known redaction gaps:** detection only scans the light DOM of the top frame plus the
+  element actually interacted with — a sensitive field in a shadow root that isn't the one
+  being interacted with may not be redacted. An action **inside an iframe gets no
+  screenshot**: its coordinates are relative to the iframe, so a box painted from them
+  would cover the wrong area of the page; the step is recorded without an image.
+  `contenteditable` elements have their sensitive values excluded from the recording the
+  same as `<input>`/`<textarea>`, but are not currently painted over in screenshots.
 - **A navigation leaving a password screen** has its URL recorded without `query` or
-  `#fragment` (a login submit can carry a credential there) and produces no screenshot.
-  The protection holds as long as the page stays the same.
-- **State is per tab:** a login screen in tab A does not suppress screenshots in tab B.
+  `#fragment` (a login submit can carry a credential there). The protection holds as long as
+  the page stays the same, and is tracked per tab.
+- **E-mail and other ordinary values are recorded** and used as examples in the guide.
 - **Nothing leaves your machine through the recorder.** Logins live in
   `%LOCALAPPDATA%\doc-agent\browser-profile`, never inside a repository.
 
-Even so: **review the screenshots before sharing the documentation.** If sensitive data
-shows up on a screen that is not a password screen, it will be in the image — in the doc
-(`docs/<slug>/screenshots/`) and in the raw recording (`docs/<slug>/sessions/`).
+Even so: **review the screenshots before sharing the documentation.** Sensitive data shown
+as plain text on a screen (a list of users, a report) is not a form field and will be in the
+image — in the doc (`docs/<slug>/screenshots/`) and in the raw recording
+(`docs/<slug>/sessions/`).
 
 ## Repository layout
 

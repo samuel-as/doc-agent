@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Demo SPA</title></head>
+<body>
+  <h1>SPA (demo)</h1>
+  <my-widget></my-widget>
+  <div id="out"></div>
+  <script>
+    // A button inside a shadow root: the click target reaches document listeners retargeted
+    // to <my-widget>; only composedPath() sees the real button.
+    class MyWidget extends HTMLElement {
+      constructor() {
+        super();
+        const root = this.attachShadow({ mode: 'open' });
+        root.innerHTML = '<button id="inner">Shadow action</button>';
+        root.querySelector('#inner').addEventListener('click', () => {
+          // same-document navigation (pushState); the new "screen" renders 700ms later
+          history.pushState({}, '', '#route-two');
+          const out = document.getElementById('out');
+          out.innerHTML = '<p>Loading…</p>';
+          setTimeout(() => {
+            out.innerHTML = '<div id="late" style="width:200px;height:100px;background:#00ff00"></div>';
+          }, 700);
+        });
+      }
+    }
+    customElements.define('my-widget', MyWidget);
+  </script>
+</body></html>
