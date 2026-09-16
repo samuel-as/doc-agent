@@ -7,6 +7,8 @@
 ![Browser: Chrome or Edge](https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-4285F4?logo=googlechrome&logoColor=white)
 ![Built for Claude Code](https://img.shields.io/badge/Claude%20Code-skills-D97757)
 
+**EN** · [PT-BR](README.pt-BR.md)
+
 **Document a procedure by performing it.** You open the browser and do the process as
 usual; doc-agent records every step with a screenshot, and Claude Code turns that into a
 step-by-step guide in markdown — with an optional PDF.
