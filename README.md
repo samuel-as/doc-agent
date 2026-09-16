@@ -7,6 +7,8 @@
 ![Browser: Chrome or Edge](https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-4285F4?logo=googlechrome&logoColor=white)
 ![Built for Claude Code](https://img.shields.io/badge/Claude%20Code-skills-D97757)
 
+**EN** · [PT-BR](README.pt-BR.md)
+
 **Document a procedure by performing it.** You open the browser and do the process as
 usual; doc-agent records every step with a screenshot, and Claude Code turns that into a
 step-by-step guide in markdown — with an optional PDF.
@@ -99,6 +101,13 @@ Committing that folder (or not) is your decision — doc-agent never touches you
 (override with the `DOC_AGENT_HOME` environment variable): the portable runtime and the
 recording browser profile.
 
+The recorder follows the whole interaction: clicks (inside shadow DOM too, and on the plain
+`div`/`span` an SPA wires as a button — recognized by the pointer cursor), text typed into
+fields, dropdown selections, checkboxes and radio buttons, keyboard shortcuts, drag and
+drop, and the scroll needed to reach a control that was off-screen. After a navigation it
+waits for the new screen to be painted, so a page or an SPA route that renders late is
+captured with its content instead of its spinner.
+
 The text comes out in the imperative ("Click **Save**"), with micro-actions grouped into
 logical steps — a whole form becomes one step, not ten. It is written in the **language of
 the recorded screens**, so a Portuguese UI produces a Portuguese guide and an English UI
@@ -106,21 +115,36 @@ produces an English one.
 
 ## Privacy and security
 
-The recorder was designed assuming you will walk through login screens:
+The recorder was designed assuming you will walk through login screens and forms with
+personal data:
 
-- **A screen with a password field produces no screenshot.** When in doubt (inspecting the
-  page failed), it takes none either.
-- **Password values are never recorded** — the step keeps `value: null`.
+- **Sensitive values are never recorded.** Passwords, one-time/MFA codes, card numbers and
+  security codes, personal documents (CPF, CNPJ, RG, passport, SSN…) and phone numbers keep
+  `value: null` in the step. Detection uses the field's `autocomplete` attribute, its
+  name/label (in several languages, Portuguese included) and, for documents and cards, the
+  value itself (check digits / Luhn).
+- **Sensitive fields are painted over in every screenshot** with a solid box, before the
+  image is written to disk — including the temporary capture kept during the recording, so
+  an interrupted recording leaves no readable field behind. If painting fails, that step
+  gets no screenshot at all.
+- **Known redaction gaps:** detection only scans the light DOM of the top frame plus the
+  element actually interacted with — a sensitive field in a shadow root that isn't the one
+  being interacted with may not be redacted. An action **inside an iframe gets no
+  screenshot**: its coordinates are relative to the iframe, so a box painted from them
+  would cover the wrong area of the page; the step is recorded without an image.
+  `contenteditable` elements have their sensitive values excluded from the recording the
+  same as `<input>`/`<textarea>`, but are not currently painted over in screenshots.
 - **A navigation leaving a password screen** has its URL recorded without `query` or
-  `#fragment` (a login submit can carry a credential there) and produces no screenshot.
-  The protection holds as long as the page stays the same.
-- **State is per tab:** a login screen in tab A does not suppress screenshots in tab B.
+  `#fragment` (a login submit can carry a credential there). The protection holds as long as
+  the page stays the same, and is tracked per tab.
+- **E-mail and other ordinary values are recorded** and used as examples in the guide.
 - **Nothing leaves your machine through the recorder.** Logins live in
   `%LOCALAPPDATA%\doc-agent\browser-profile`, never inside a repository.
 
-Even so: **review the screenshots before sharing the documentation.** If sensitive data
-shows up on a screen that is not a password screen, it will be in the image — in the doc
-(`docs/<slug>/screenshots/`) and in the raw recording (`docs/<slug>/sessions/`).
+Even so: **review the screenshots before sharing the documentation.** Sensitive data shown
+as plain text on a screen (a list of users, a report) is not a form field and will be in the
+image — in the doc (`docs/<slug>/screenshots/`) and in the raw recording
+(`docs/<slug>/sessions/`).
 
 ## Repository layout
 
@@ -148,7 +172,8 @@ Everything lives in `tools/recorder` (there you do run `npm install`):
 npm test               # unit tests (node --test), no browser needed
 npm run build          # regenerates the bundle + THIRD-PARTY-NOTICES.md — commit them along
 npm run smoke          # end-to-end pipeline (requires Chrome/Edge)
-npm run smoke:security # screenshot and URL suppression on password screens
+npm run smoke:security # sensitive values, redaction boxes and schema 2 on a login screen
+npm run smoke:dynamic  # shadow DOM + SPA settle
 npm run smoke:pdf      # PDF export
 ```
 

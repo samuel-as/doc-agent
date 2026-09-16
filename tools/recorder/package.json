@@ -1,6 +1,6 @@
 {
   "name": "doc-agent",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Browser procedure recorder: captures steps and screenshots for Claude Code to write the documentation.",
   "license": "MIT",
   "author": "Samuel Alves",
@@ -22,11 +22,12 @@
     "build": "node build.mjs",
     "smoke": "node smoke/driver.mjs",
     "smoke:security": "node smoke/driver.mjs security",
+    "smoke:dynamic": "node smoke/driver.mjs dynamic",
     "smoke:pdf": "node smoke/pdf.mjs"
   },
   "dependencies": {
-    "marked": "^18.0.11",
-    "playwright-core": "^1.50.0",
+    "marked": "^18.0.13",
+    "playwright-core": "^1.63.0",
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
