@@ -7,7 +7,7 @@ the open-source packages below. Their license texts are reproduced in full, as
 required for redistribution. doc-agent itself is licensed under MIT — see LICENSE.txt
 in this folder.
 
-## playwright-core 1.62.1
+## playwright-core 1.63.0
 
 - License: Apache-2.0
 - Source: https://github.com/microsoft/playwright
