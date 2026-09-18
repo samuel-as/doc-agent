@@ -34,7 +34,8 @@ telas que mudaram: regravar é mais rápido.
 Você **não** precisa instalar Node, npm nem dependência alguma: na primeira execução o
 doc-agent reaproveita um Node.js 22+ já instalado na máquina ou baixa o Node portátil
 oficial (zip fixado, de `nodejs.org`) — uma vez por máquina, em `%LOCALAPPDATA%\doc-agent`
-— sem direitos de administrador, sem mexer no PATH, sem registro.
+— sem direitos de administrador, sem mexer no PATH, sem registro. O Node só aparece no
+caminho de instalação via `npx` abaixo, e só para copiar os arquivos.
 
 ## Instalação
 
@@ -50,9 +51,11 @@ No Claude Code:
 /plugin install doc-agent@doc-agent
 ```
 
-Instala uma vez e fica disponível em **todos** os projetos, como `/doc-agent:document`.
-Cada release publicada na `main` chega sozinha, na sessão seguinte do Claude Code — sem
-Node e sem `npx` no caminho.
+Instala uma vez e fica disponível em **todos** os projetos, como `/doc-agent:document` — os
+guias continuam sendo escritos na pasta `docs/` do projeto em que você estiver. Cada release
+publicada na `main` chega sozinha, na sessão seguinte do Claude Code — sem Node e sem `npx`
+no caminho. `/plugin update doc-agent@doc-agent` antecipa uma atualização;
+`/plugin uninstall doc-agent@doc-agent` remove.
 
 ### Como skill, em um projeto só
 
@@ -177,7 +180,7 @@ quanto na gravação bruta (`docs/<slug>/sessions/`).
 
 ```
 .claude-plugin/marketplace.json   ← faz do repositório um marketplace do Claude Code
-.claude/skills/document/          ← a skill (autocontida, viaja inteira via npx)
+.claude/skills/document/          ← a skill (autocontida: é o que plugin e npx levam)
 ├── SKILL.md                      ← fluxo de gravar + regerar
 ├── references/write-doc.md       ← como a documentação é escrita
 ├── LICENSE.txt                   ← MIT
@@ -224,6 +227,7 @@ npm run smoke:pdf      # exportação para PDF
 | A gravação terminou sem passos | o navegador foi fechado sem nenhuma ação gravada — grave de novo |
 | Sessão inválida ou vazia | não gere documentação parcial: grave de novo com `/document <nome>` |
 | Preciso dos dados em outro lugar | defina `DOC_AGENT_HOME` para mover runtime + perfil do navegador |
+| A skill não aparece depois do `/plugin install` | abra uma sessão nova do Claude Code — instalar ou atualizar plugin só vale depois de reiniciar |
 
 ## Licença
 
@@ -232,5 +236,5 @@ npm run smoke:pdf      # exportação para PDF
 O bundle versionado `.claude/skills/document/scripts/doc-agent.mjs` redistribui cópias
 compiladas de pacotes de terceiros — as licenças estão reproduzidas em
 [THIRD-PARTY-NOTICES.md](.claude/skills/document/THIRD-PARTY-NOTICES.md), dentro da pasta
-da skill para viajarem junto com o bundle também no `npx skills add` (regerado por
-`npm run build`).
+da skill para viajarem junto com o bundle também na instalação como plugin e no
+`npx skills add` (regerado por `npm run build`).
