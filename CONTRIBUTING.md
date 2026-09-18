@@ -12,9 +12,9 @@ below are everything you need.
   get `main`, so they only ever receive released states.
 
 Because plugin installs follow `main`, a release merge is a publication: bump the version
-in **both** `tools/recorder/package.json` and the plugin entry of
-`.claude-plugin/marketplace.json` (CI fails when they disagree). Claude Code only pulls a
-new plugin version when that number changes.
+in **all three** of `tools/recorder/package.json`, `.claude-plugin/plugin.json` and the
+entry in `.claude-plugin/marketplace.json` (CI fails when they disagree). Claude Code only
+pulls a new plugin version when that number changes.
 
 ## Where the code lives
 
@@ -22,7 +22,8 @@ new plugin version when that number changes.
 |---|---|
 | `tools/recorder/` | recorder source, tests and build — the only place you run npm |
 | `.claude/skills/document/` | the skill: SKILL.md, `references/write-doc.md`, `scripts/bootstrap.ps1`, LICENSE.txt |
-| `.claude-plugin/marketplace.json` | marketplace manifest — points the plugin at the skill folder above |
+| `.claude-plugin/marketplace.json` | marketplace manifest — the catalog entry for this repository |
+| `.claude-plugin/plugin.json` | plugin manifest — metadata and the path to the skill folder above |
 | `.claude/skills/document/scripts/doc-agent.mjs` | committed bundle, **generated** — never edit by hand |
 | `.claude/skills/document/THIRD-PARTY-NOTICES.md` | **generated** by the build — never edit by hand |
 

@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) —
 versions follow [SemVer](https://semver.org).
 
+## [0.3.2] — 2026-09-18
+
+### Fixed
+
+- Plugin metadata was missing from the Claude Code plugin list: the repository had no
+  `.claude-plugin/plugin.json`, so the entry showed neither author nor description. The
+  manifest now exists and is the authority for name, author, description, license and the
+  skill path, as the plugin reference documents.
+- The marketplace entry declared the skill path without `strict: false`, which the
+  marketplace reference requires when the entry is the whole definition. The path moved
+  into `plugin.json` instead, so the default (`strict: true`, `plugin.json` is the
+  authority) is now the correct setting.
+- Both manifests point `$schema` at the published JSON Schema on schemastore.org; the
+  previous URL served no schema.
+- The marketplace entry gained `author`, `displayName`, `category` and `keywords`, so the
+  plugin list can show who publishes it.
+- The CI version gate now covers all three manifests (`package.json`, `marketplace.json`,
+  `plugin.json`).
+
 ## [0.3.1] — 2026-09-18
 
 ### Added
