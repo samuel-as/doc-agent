@@ -10,7 +10,7 @@
     {
       "name": "doc-agent",
       "source": "./",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "Document a browser procedure by performing it: records every step with a screenshot and writes a step-by-step guide in markdown (optional PDF). Windows + Chrome/Edge.",
       "skills": ["./.claude/skills/document"],
       "homepage": "https://github.com/samuel-as/doc-agent",
