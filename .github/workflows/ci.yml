@@ -54,17 +54,18 @@ jobs:
             exit 1
           fi
 
-      # The plugin marketplace entry carries the version users install. If it drifts from
+      # The plugin manifests carry the version users install. If either drifts from
       # tools/recorder/package.json, a release on main never reaches anyone: Claude Code
       # only picks up a new plugin version when that number changes.
-      - name: Fail if the marketplace version differs from package.json
+      - name: Fail if the plugin versions differ from package.json
         working-directory: ${{ github.workspace }}
         shell: bash
         run: |
           pkg=$(node -p "require('./tools/recorder/package.json').version")
           mkt=$(node -p "require('./.claude-plugin/marketplace.json').plugins[0].version")
-          if [ "$pkg" != "$mkt" ]; then
-            echo "::error::.claude-plugin/marketplace.json is at $mkt but tools/recorder/package.json is at $pkg. Bump both in the release commit."
+          plg=$(node -p "require('./.claude-plugin/plugin.json').version")
+          if [ "$pkg" != "$mkt" ] || [ "$pkg" != "$plg" ]; then
+            echo "::error::version mismatch - package.json $pkg, marketplace.json $mkt, plugin.json $plg. Bump all three in the release commit."
             exit 1
           fi
-          echo "marketplace version and package.json agree: $pkg"
+          echo "plugin manifests and package.json agree: $pkg"

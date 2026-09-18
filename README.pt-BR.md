@@ -179,7 +179,9 @@ quanto na gravação bruta (`docs/<slug>/sessions/`).
 ## Organização do repositório
 
 ```
-.claude-plugin/marketplace.json   ← faz do repositório um marketplace do Claude Code
+.claude-plugin/                   ← faz do repositório um marketplace do Claude Code
+├── marketplace.json              ← a entrada de catálogo (um plugin: este repositório)
+└── plugin.json                   ← o plugin em si: metadados + onde a skill mora
 .claude/skills/document/          ← a skill (autocontida: é o que plugin e npx levam)
 ├── SKILL.md                      ← fluxo de gravar + regerar
 ├── references/write-doc.md       ← como a documentação é escrita
@@ -214,9 +216,10 @@ npm run smoke:pdf      # exportação para PDF
   rejeita a mudança.
 - Para atualizar o Node portátil: edite `$NodeVersion` em
   `.claude/skills/document/scripts/bootstrap.ps1`.
-- Vai lançar uma release? A versão vive em dois arquivos — `tools/recorder/package.json` e
-  a entrada do plugin em `.claude-plugin/marketplace.json`. O CI falha quando os dois
-  discordam, porque a instalação como plugin só pega a versão nova quando esse número muda.
+- Vai lançar uma release? A versão vive em três arquivos — `tools/recorder/package.json`,
+  `.claude-plugin/plugin.json` e a entrada em `.claude-plugin/marketplace.json`. O CI falha
+  quando eles discordam, porque a instalação como plugin só pega a versão nova quando esse
+  número muda.
 
 ## Resolução de problemas
 

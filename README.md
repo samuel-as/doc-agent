@@ -178,7 +178,9 @@ image — in the doc (`docs/<slug>/screenshots/`) and in the raw recording
 ## Repository layout
 
 ```
-.claude-plugin/marketplace.json   ← makes the repository a Claude Code marketplace
+.claude-plugin/                   ← makes the repository a Claude Code marketplace
+├── marketplace.json              ← the catalog entry (one plugin: this repository)
+└── plugin.json                   ← the plugin itself: metadata + where the skill lives
 .claude/skills/document/          ← the skill (self-contained: what plugin and npx ship)
 ├── SKILL.md                      ← record + regenerate flow
 ├── references/write-doc.md       ← how the documentation is written
@@ -213,9 +215,10 @@ npm run smoke:pdf      # PDF export
   change otherwise.
 - To update the portable Node: edit `$NodeVersion` in
   `.claude/skills/document/scripts/bootstrap.ps1`.
-- Releasing? The version lives in two files — `tools/recorder/package.json` and the plugin
-  entry in `.claude-plugin/marketplace.json`. CI fails when they disagree, because a plugin
-  install only picks up a new version when that number changes.
+- Releasing? The version lives in three files — `tools/recorder/package.json`,
+  `.claude-plugin/plugin.json` and the entry in `.claude-plugin/marketplace.json`. CI fails
+  when they disagree, because a plugin install only picks up a new version when that number
+  changes.
 
 ## Troubleshooting
 

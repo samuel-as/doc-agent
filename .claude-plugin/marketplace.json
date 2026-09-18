@@ -1,5 +1,5 @@
 {
-  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
   "name": "doc-agent",
   "description": "doc-agent: turn a procedure you perform in the browser into step-by-step documentation with screenshots.",
   "owner": {
@@ -9,12 +9,17 @@
   "plugins": [
     {
       "name": "doc-agent",
+      "displayName": "doc-agent",
       "source": "./",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "description": "Document a browser procedure by performing it: records every step with a screenshot and writes a step-by-step guide in markdown (optional PDF). Windows + Chrome/Edge.",
-      "skills": ["./.claude/skills/document"],
+      "author": {
+        "name": "Samuel Alves",
+        "url": "https://github.com/samuel-as"
+      },
       "homepage": "https://github.com/samuel-as/doc-agent",
       "license": "MIT",
+      "category": "documentation",
       "keywords": ["documentation", "screenshots", "browser", "recorder", "windows", "how-to"]
     }
   ]

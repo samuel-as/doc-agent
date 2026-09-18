@@ -1,0 +1,16 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-plugin.json",
+  "name": "doc-agent",
+  "displayName": "doc-agent",
+  "description": "Document a browser procedure by performing it: records every step with a screenshot and writes a step-by-step guide in markdown (optional PDF). Windows + Chrome/Edge.",
+  "version": "0.3.2",
+  "author": {
+    "name": "Samuel Alves",
+    "url": "https://github.com/samuel-as"
+  },
+  "homepage": "https://github.com/samuel-as/doc-agent",
+  "repository": "https://github.com/samuel-as/doc-agent",
+  "license": "MIT",
+  "keywords": ["documentation", "screenshots", "browser", "recorder", "windows", "how-to"],
+  "skills": "./.claude/skills/document"
+}
