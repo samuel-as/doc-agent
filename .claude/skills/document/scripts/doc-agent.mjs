@@ -162819,6 +162819,33 @@ function buildInitScript() {
       return { x: r.left, y: r.top, w: r.width, h: r.height };
     };
 
+    // Logical container of the target, for the cropped variant of the screenshot. Only
+    // semantic ancestors count; null means "no crop, use the full screenshot". Measured at
+    // event time (the capture runs a bit later; a scroll in between shifts the crop \u2014 a
+    // quality issue, not a privacy one: redaction rects are measured at capture time).
+    const CONTAINERS = 'form, fieldset, dialog, [role="dialog"], table, [role="tabpanel"], section, article, aside, nav, header';
+    const CROP_MAX_AREA = 0.6; // of the viewport: bigger than this, the crop would not help
+    const CROP_MIN_SIDE = 40;  // visible part smaller than this is not a usable container
+    const CROP_MARGIN = 24;
+    const CROP_MIN_W = 480, CROP_MIN_H = 240;
+    const containerRect = (el) => {
+      if (!el || !el.closest) return null;
+      const c = el.closest(CONTAINERS);
+      if (!c) return null;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const r = c.getBoundingClientRect();
+      let x0 = Math.max(0, r.left), y0 = Math.max(0, r.top);
+      let x1 = Math.min(vw, r.right), y1 = Math.min(vh, r.bottom);
+      if (x1 - x0 < CROP_MIN_SIDE || y1 - y0 < CROP_MIN_SIDE) return null;
+      if ((x1 - x0) * (y1 - y0) > CROP_MAX_AREA * vw * vh) return null;
+      x0 -= CROP_MARGIN; y0 -= CROP_MARGIN; x1 += CROP_MARGIN; y1 += CROP_MARGIN;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const w = Math.max(x1 - x0, CROP_MIN_W), h = Math.max(y1 - y0, CROP_MIN_H);
+      x0 = Math.max(0, cx - w / 2); x1 = Math.min(vw, cx + w / 2);
+      y0 = Math.max(0, cy - h / 2); y1 = Math.min(vh, cy + h / 2);
+      return { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) };
+    };
+
     // Rects of every VISIBLE sensitive field right now \u2014 the recorder paints them over.
     // Light DOM only via querySelectorAll; the event target is added so a field inside a
     // shadow root is covered at least when it is the one being used.
@@ -162841,6 +162868,7 @@ function buildInitScript() {
       label: el ? labelFor(el) : null, selector: el ? cssPath(el) : null,
       scrollY: window.scrollY, viewportH: window.innerHeight,
       sensitiveRects: sensitiveRects(el),
+      containerRect: el ? containerRect(el) : null,
       // Drives the URL rule in the recorder. Unlike the rects, this does not depend on
       // visibility: a password field scrolled out of view or hidden behind a step of the
       // form still makes this a login screen.
