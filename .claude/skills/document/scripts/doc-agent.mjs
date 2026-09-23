@@ -160261,21 +160261,22 @@ function consolidate(events) {
           scrolled: sameInteraction ? scrolled || prev.scrolled : scrolled,
           screenshot: shotFrom.screenshot,
           coords: shotFrom.coords,
-          sensitiveRects: shotFrom.sensitiveRects
+          sensitiveRects: shotFrom.sensitiveRects,
+          containerRect: shotFrom.containerRect ?? null
         });
         lastCommitBySelector.delete(ev.selector);
         break;
       }
       case "click": {
         if (ev.isEditable) {
-          focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev) });
+          focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev), containerRect: ev.containerRect ?? null });
           lastCommitBySelector.delete(ev.selector);
           break;
         }
         const scrolled = scrolledFlag(ev);
         if (lastClick && lastClick.selector === ev.selector && ev.ts - lastClick.ts < CLICK_DEDUP_MS) break;
         lastClick = ev;
-        steps.push(makeStep("click", ev, { screenshot: ev.screenshot, coords: ev.coords, scrolled }));
+        steps.push(makeStep("click", ev, { screenshot: ev.screenshot, coords: ev.coords, scrolled, containerRect: ev.containerRect ?? null }));
         break;
       }
       case "field-commit": {
@@ -160289,25 +160290,26 @@ function consolidate(events) {
           screenshot: focus?.screenshot ?? ev.screenshot ?? null,
           coords: focus?.coords ?? null,
           sensitiveRects: focus?.screenshot ? focus.sensitiveRects ?? [] : ev.sensitiveRects ?? [],
-          scrolled: focus ? focus.scrolled : scrolledFlag(ev)
+          scrolled: focus ? focus.scrolled : scrolledFlag(ev),
+          containerRect: focus?.screenshot ? focus.containerRect ?? null : null
         }));
         focusBySelector.delete(ev.selector);
         break;
       }
       case "select":
-        steps.push(makeStep("select", ev, { value: ev.value, screenshot: ev.screenshot, scrolled: scrolledFlag(ev) }));
+        steps.push(makeStep("select", ev, { value: ev.value, screenshot: ev.screenshot, scrolled: scrolledFlag(ev), containerRect: ev.containerRect ?? null }));
         break;
       case "check": {
         const scrolled = scrolledFlag(ev);
         if (lastCheck && lastCheck.selector === ev.selector && lastCheck.value === ev.value && ev.ts - lastCheck.ts < CLICK_DEDUP_MS) break;
         lastCheck = ev;
-        steps.push(makeStep("check", ev, { value: ev.value, screenshot: ev.screenshot, coords: ev.coords, scrolled }));
+        steps.push(makeStep("check", ev, { value: ev.value, screenshot: ev.screenshot, coords: ev.coords, scrolled, containerRect: ev.containerRect ?? null }));
         break;
       }
       case "shortcut": {
         if (lastShortcut && lastShortcut.value === ev.value && ev.ts - lastShortcut.ts < CLICK_DEDUP_MS) break;
         lastShortcut = ev;
-        steps.push(makeStep("shortcut", ev, { value: ev.value, screenshot: ev.screenshot }));
+        steps.push(makeStep("shortcut", ev, { value: ev.value, screenshot: ev.screenshot, containerRect: null }));
         break;
       }
       case "drag-start":
@@ -160320,18 +160322,19 @@ function consolidate(events) {
           target: ev.target ?? null,
           screenshot: start3?.screenshot ?? null,
           coords: start3?.coords ?? null,
-          sensitiveRects: start3?.sensitiveRects ?? []
+          sensitiveRects: start3?.sensitiveRects ?? [],
+          containerRect: start3?.containerRect ?? null
         }));
         break;
       }
       case "enter":
-        steps.push(makeStep("enter", ev, { screenshot: null }));
+        steps.push(makeStep("enter", ev, { screenshot: null, containerRect: null }));
         break;
       case "navigation": {
         lastScrollByPage.delete(baseUrl(ev.url));
         if (lastNav && lastNav.url === ev.url && ev.ts - lastNav.ts < NAV_DEDUP_MS) break;
         lastNav = ev;
-        steps.push(makeStep("navigation", ev, { screenshot: ev.screenshot }));
+        steps.push(makeStep("navigation", ev, { screenshot: ev.screenshot, containerRect: null }));
         break;
       }
     }
@@ -160352,6 +160355,8 @@ function makeStep(type3, ev, extra) {
     coords: null,
     screenshot: null,
     sensitiveRects: ev.sensitiveRects ?? [],
+    // internal: consumed by session.finalize, then dropped
+    containerRect: ev.containerRect ?? null,
     // internal: consumed by session.finalize, then dropped
     ...extra
   };

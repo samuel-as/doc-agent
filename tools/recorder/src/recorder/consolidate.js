@@ -46,6 +46,7 @@ export function consolidate(events) {
           screenshot: shotFrom.screenshot,
           coords: shotFrom.coords,
           sensitiveRects: shotFrom.sensitiveRects,
+          containerRect: shotFrom.containerRect ?? null,
         });
         lastCommitBySelector.delete(ev.selector); // new focus: a real re-edit may legitimately repeat the value
         break;
@@ -54,14 +55,14 @@ export function consolidate(events) {
       case 'click': {
         if (ev.isEditable) {
           // a click on a text field is absorbed by the fill step; keep its screenshot/coords/rects
-          focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev) });
+          focusBySelector.set(ev.selector, { ...ev, scrolled: scrolledFlag(ev), containerRect: ev.containerRect ?? null });
           lastCommitBySelector.delete(ev.selector);
           break;
         }
         const scrolled = scrolledFlag(ev);
         if (lastClick && lastClick.selector === ev.selector && ev.ts - lastClick.ts < CLICK_DEDUP_MS) break;
         lastClick = ev;
-        steps.push(makeStep('click', ev, { screenshot: ev.screenshot, coords: ev.coords, scrolled }));
+        steps.push(makeStep('click', ev, { screenshot: ev.screenshot, coords: ev.coords, scrolled, containerRect: ev.containerRect ?? null }));
         break;
       }
 
@@ -82,27 +83,28 @@ export function consolidate(events) {
           coords: focus?.coords ?? null,
           sensitiveRects: focus?.screenshot ? (focus.sensitiveRects ?? []) : (ev.sensitiveRects ?? []),
           scrolled: focus ? focus.scrolled : scrolledFlag(ev),
+          containerRect: focus?.screenshot ? (focus.containerRect ?? null) : null,
         }));
         focusBySelector.delete(ev.selector);
         break;
       }
 
       case 'select':
-        steps.push(makeStep('select', ev, { value: ev.value, screenshot: ev.screenshot, scrolled: scrolledFlag(ev) }));
+        steps.push(makeStep('select', ev, { value: ev.value, screenshot: ev.screenshot, scrolled: scrolledFlag(ev), containerRect: ev.containerRect ?? null }));
         break;
 
       case 'check': {
         const scrolled = scrolledFlag(ev);
         if (lastCheck && lastCheck.selector === ev.selector && lastCheck.value === ev.value && ev.ts - lastCheck.ts < CLICK_DEDUP_MS) break;
         lastCheck = ev;
-        steps.push(makeStep('check', ev, { value: ev.value, screenshot: ev.screenshot, coords: ev.coords, scrolled }));
+        steps.push(makeStep('check', ev, { value: ev.value, screenshot: ev.screenshot, coords: ev.coords, scrolled, containerRect: ev.containerRect ?? null }));
         break;
       }
 
       case 'shortcut': {
         if (lastShortcut && lastShortcut.value === ev.value && ev.ts - lastShortcut.ts < CLICK_DEDUP_MS) break;
         lastShortcut = ev;
-        steps.push(makeStep('shortcut', ev, { value: ev.value, screenshot: ev.screenshot }));
+        steps.push(makeStep('shortcut', ev, { value: ev.value, screenshot: ev.screenshot, containerRect: null }));
         break;
       }
 
@@ -118,19 +120,20 @@ export function consolidate(events) {
           screenshot: start?.screenshot ?? null,
           coords: start?.coords ?? null,
           sensitiveRects: start?.sensitiveRects ?? [],
+          containerRect: start?.containerRect ?? null,
         }));
         break;
       }
 
       case 'enter':
-        steps.push(makeStep('enter', ev, { screenshot: null }));
+        steps.push(makeStep('enter', ev, { screenshot: null, containerRect: null }));
         break;
 
       case 'navigation': {
         lastScrollByPage.delete(baseUrl(ev.url)); // the first action on the new page is never "scrolled"
         if (lastNav && lastNav.url === ev.url && ev.ts - lastNav.ts < NAV_DEDUP_MS) break;
         lastNav = ev;
-        steps.push(makeStep('navigation', ev, { screenshot: ev.screenshot }));
+        steps.push(makeStep('navigation', ev, { screenshot: ev.screenshot, containerRect: null }));
         break;
       }
     }
@@ -152,6 +155,7 @@ function makeStep(type, ev, extra) {
     coords: null,
     screenshot: null,
     sensitiveRects: ev.sensitiveRects ?? [], // internal: consumed by session.finalize, then dropped
+    containerRect: ev.containerRect ?? null, // internal: consumed by session.finalize, then dropped
     ...extra,
   };
 }
