@@ -311,3 +311,36 @@ test('drag takes the containerRect of the drag-start', () => {
   ]);
   assert.deepEqual(steps[0].containerRect, RECT);
 });
+
+// Adversarial: in the real page, shortcut/enter/field-commit/drag events DO carry a
+// containerRect (the page puts one on every payload that has a target) -- the explicit
+// nulls in consolidate.js's makeStep calls are the only thing keeping these steps crop-free.
+// These events would never legitimately show it (a shortcut has no click point to crop
+// around, a bare Enter may have nothing focused, navigation is a full-page change), so
+// giving them a rect here and asserting null pins that guard down.
+test('shortcut/enter/navigation ignore a containerRect on their own event', () => {
+  const steps = consolidate([
+    ev('shortcut', { value: 'Ctrl+S', containerRect: RECT, ts: 1000 }),
+    ev('enter', { containerRect: RECT, ts: 2000 }),
+    ev('navigation', { url: 'https://x/2', containerRect: RECT, ts: 3000 }),
+  ]);
+  assert.equal(steps[0].containerRect, null);
+  assert.equal(steps[1].containerRect, null);
+  assert.equal(steps[2].containerRect, null);
+});
+
+test('field-commit with its own containerRect and no focus screenshot still yields containerRect null on the fill', () => {
+  const steps = consolidate([
+    ev('field-commit', { selector: '#f', value: 'v', containerRect: RECT }),
+  ]);
+  assert.equal(steps[0].type, 'fill');
+  assert.equal(steps[0].containerRect, null);
+});
+
+test('drag ignores a containerRect on the drop event itself, keeping the drag-start one', () => {
+  const steps = consolidate([
+    ev('drag-start', { selector: '#i', screenshot: 'shots/raw-001.png', containerRect: RECT, ts: 1000 }),
+    ev('drag', { selector: '#i', target: 'Done', containerRect: OTHER, ts: 1500 }),
+  ]);
+  assert.deepEqual(steps[0].containerRect, RECT);
+});
