@@ -202,6 +202,40 @@ test('a crop that fails falls back to full without touching the full screenshot'
   assert.equal(json.steps[0].preferred, 'full');
 });
 
+test('a step whose coords fall outside its containerRect gets no crop (the crop would miss the target)', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
+  const session = new SessionWriter(path.join(root, 'docs', 'outside'), 'outside', NOW);
+  await session.init();
+  // containerRect (10,10)-(30,30) would crop cleanly out of the 50x50 image, but the click
+  // landed at (45,45) -- e.g. a dropdown item overflowing its nav/header ancestor -- so the
+  // crop must be skipped rather than show a container without the element or its marker.
+  await session.addEvent(ev('click', { selector: '#a', coords: { x: 45, y: 45 }, containerRect: { x: 10, y: 10, w: 20, h: 20 } }), await tinyPng());
+  const dir = await session.finalize();
+  const json = JSON.parse(await fs.readFile(path.join(dir, 'session.json'), 'utf8'));
+  assert.equal(json.steps[0].screenshot, 'shots/step-001.png');
+  assert.equal(json.steps[0].screenshotCrop, null);
+  assert.equal(json.steps[0].preferred, 'full');
+  assert.deepEqual((await fs.readdir(path.join(dir, 'shots'))).sort(), ['step-001.png']);
+});
+
+test('the crop carries the redaction of the sensitive field it contains', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
+  const session = new SessionWriter(path.join(root, 'docs', 'crop-redact'), 'crop-redact', NOW);
+  await session.init();
+  await session.addEvent(ev('click', {
+    selector: '#a',
+    sensitiveRects: [{ x: 12, y: 12, w: 6, h: 6, reason: 'password' }],
+    containerRect: { x: 10, y: 10, w: 30, h: 20 },
+  }), await tinyPng());
+  const dir = await session.finalize();
+  const json = JSON.parse(await fs.readFile(path.join(dir, 'session.json'), 'utf8'));
+  assert.equal(json.steps[0].preferred, 'crop');
+  const crop = PNG.sync.read(await fs.readFile(path.join(dir, 'shots', 'step-001-crop.png')));
+  const px = (x, y) => { const i = (crop.width * y + x) << 2; return [crop.data[i], crop.data[i + 1], crop.data[i + 2]]; };
+  // (5,5) of the crop is (15,15) of the full image: inside the redacted field
+  assert.deepEqual(px(5, 5), [43, 43, 43]);
+});
+
 test('a step with no screenshot at all is preferred full', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-agent-'));
   const session = new SessionWriter(path.join(root, 'docs', 'noshot'), 'noshot', NOW);

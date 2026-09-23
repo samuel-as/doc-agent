@@ -4,6 +4,12 @@ import path from 'node:path';
 import { consolidate } from './consolidate.js';
 import { drawMarker, drawRedaction, cropPng } from './marker.js';
 
+// True when the click point landed outside the measured container -- see the guard in
+// _renderShot below.
+function outsideContainer(coords, rect) {
+  return coords.x < rect.x || coords.x > rect.x + rect.w || coords.y < rect.y || coords.y > rect.y + rect.h;
+}
+
 // Local-time stamp YYYY-MM-DD-HHMM: each recording gets its own folder, so earlier
 // takes of the same procedure are preserved.
 function stamp(now) {
@@ -93,7 +99,11 @@ export class SessionWriter {
       const screenshot = `shots/step-${n}.png`;
       await fs.writeFile(path.join(this.dir, screenshot), buf);
       let screenshotCrop = null;
-      if (step.containerRect) {
+      // Defense in depth against the page's containerRect() missing the target (an absolutely
+      // positioned dropdown/menu overflowing its semantic ancestor): when the click point is
+      // outside the container we measured, cropping would show the ancestor without the element
+      // or its marker, so skip the crop and keep the full screenshot instead.
+      if (step.containerRect && !(step.coords && outsideContainer(step.coords, step.containerRect))) {
         try {
           const cropped = await cropPng(buf, step.containerRect);
           screenshotCrop = `shots/step-${n}-crop.png`;

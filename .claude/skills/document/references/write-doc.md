@@ -18,13 +18,16 @@ field names are always quoted exactly as they appear on screen, never translated
    corrupted or `steps` is empty, STOP immediately and report: "Invalid or empty session —
    record it again with `/document <name>`". NEVER generate partial documentation silently.
 
-2. **Look at every step's image — one file per step.** Each step declares which file to
-   open: `preferred: "crop"` → read `<session>/<screenshotCrop>` (the block of the screen
-   where the action happened, with the click marker); `preferred: "full"` or absent → read
-   `<session>/<screenshot>`. Open ONLY that file. Open the other one only when the user asked
-   for it ("use the full screenshot on step 4") or when the crop you opened visibly cut off a
-   label or button the instruction needs. The images are the source of truth about what the
-   screen shows — use them to:
+2. **Look at every step's image — one file per step.** A step with no `screenshot` (e.g. an
+   `enter` or a `fill` with no focus shot) has no image to open — write the step from the log
+   alone. Otherwise, each step declares which file to open: `preferred: "crop"` → read
+   `<session>/<screenshotCrop>` (the block of the screen where the action happened, with the
+   click marker); `preferred: "full"` or absent → read `<session>/<screenshot>`. Open ONLY
+   that file. Open the other one only when the user asked for it ("use the full screenshot on
+   step 4") or when the image you opened does not actually show what the step is about — a
+   crop that cuts off a label or button the instruction needs, or a crop where the acted-on
+   element and its marker are not visible at all (the crop shows the container but missed the
+   target). The images are the source of truth about what the screen shows — use them to:
    - fix generic or truncated labels from the log (the real button/field text is in the image);
    - identify the real name of the screen and of the system;
    - capture messages, warnings and states that the event log does not record.

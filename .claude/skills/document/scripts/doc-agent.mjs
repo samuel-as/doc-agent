@@ -162540,6 +162540,9 @@ __export2(session_exports, {
 });
 import fs2 from "node:fs/promises";
 import path2 from "node:path";
+function outsideContainer(coords, rect) {
+  return coords.x < rect.x || coords.x > rect.x + rect.w || coords.y < rect.y || coords.y > rect.y + rect.h;
+}
 function stamp(now) {
   const p = (n, w = 2) => String(n).padStart(w, "0");
   return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}`;
@@ -162620,7 +162623,7 @@ var init_session2 = __esm2({
           const screenshot4 = `shots/step-${n}.png`;
           await fs2.writeFile(path2.join(this.dir, screenshot4), buf);
           let screenshotCrop = null;
-          if (step.containerRect) {
+          if (step.containerRect && !(step.coords && outsideContainer(step.coords, step.containerRect))) {
             try {
               const cropped = await cropPng(buf, step.containerRect);
               screenshotCrop = `shots/step-${n}-crop.png`;
@@ -162857,6 +162860,13 @@ function buildInitScript() {
     // semantic ancestors count; null means "no crop, use the full screenshot". Measured at
     // event time (the capture runs a bit later; a scroll in between shifts the crop \u2014 a
     // quality issue, not a privacy one: redaction rects are measured at capture time).
+    // The ancestor's own box does not grow for a descendant positioned outside its normal
+    // flow (a dropdown overflowing a nav/header, a row menu overflowing a table, an
+    // autocomplete list overflowing a fieldset), so the crop built from that box alone can
+    // end up not containing the target at all. Unioning the target's rect in would defeat
+    // the point of a tight crop around the container, so instead this is conservative: once
+    // the final rect is known, null is returned unless the target's own centre falls inside
+    // it, falling back to the full screenshot rather than showing a crop without the element.
     const CONTAINERS = 'form, fieldset, dialog, [role="dialog"], table, [role="tabpanel"], section, article, aside, nav, header';
     const CROP_MAX_AREA = 0.6; // of the viewport: bigger than this, the crop would not help
     const CROP_MIN_SIDE = 40;  // visible part smaller than this is not a usable container
@@ -162877,6 +162887,9 @@ function buildInitScript() {
       const w = Math.max(x1 - x0, CROP_MIN_W), h = Math.max(y1 - y0, CROP_MIN_H);
       x0 = Math.max(0, cx - w / 2); x1 = Math.min(vw, cx + w / 2);
       y0 = Math.max(0, cy - h / 2); y1 = Math.min(vh, cy + h / 2);
+      const er = el.getBoundingClientRect();
+      const ecx = er.left + er.width / 2, ecy = er.top + er.height / 2;
+      if (ecx < x0 || ecx > x1 || ecy < y0 || ecy > y1) return null;
       return { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) };
     };
 
