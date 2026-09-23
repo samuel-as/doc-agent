@@ -162505,6 +162505,21 @@ async function drawRedaction(inputPng, rects) {
   }
   return import_pngjs.PNG.sync.write(png);
 }
+async function cropPng(inputPng, { x: x2, y: y2, w, h }) {
+  const png = import_pngjs.PNG.sync.read(inputPng);
+  const x0 = Math.max(0, Math.floor(x2));
+  const y0 = Math.max(0, Math.floor(y2));
+  const x1 = Math.min(png.width, Math.ceil(x2 + w));
+  const y1 = Math.min(png.height, Math.ceil(y2 + h));
+  const cw = x1 - x0, ch = y1 - y0;
+  if (cw <= 0 || ch <= 0) throw new Error("empty crop");
+  const out = new import_pngjs.PNG({ width: cw, height: ch });
+  for (let row = 0; row < ch; row++) {
+    const srcStart = png.width * (y0 + row) + x0 << 2;
+    png.data.copy(out.data, cw * row << 2, srcStart, srcStart + (cw << 2));
+  }
+  return import_pngjs.PNG.sync.write(out);
+}
 var import_pngjs, RADIUS, STROKE, COLOR, FILL_ALPHA, REDACT, REDACT_PAD;
 var init_marker = __esm2({
   "src/recorder/marker.js"() {
@@ -162574,9 +162589,9 @@ var init_session2 = __esm2({
         const steps = consolidate(orderedEvents);
         const finalSteps = [];
         for (const step of steps) {
-          const finalShot = step.screenshot ? await this._renderShot(step) : null;
-          const { coords, screenshot: screenshot4, sensitiveRects, ...rest } = step;
-          finalSteps.push({ ...rest, screenshot: finalShot });
+          const { screenshot: screenshot4, screenshotCrop } = step.screenshot ? await this._renderShot(step) : { screenshot: null, screenshotCrop: null };
+          const { coords, screenshot: raw, sensitiveRects, containerRect, ...rest } = step;
+          finalSteps.push({ ...rest, screenshot: screenshot4, screenshotCrop, preferred: screenshotCrop ? "crop" : "full" });
         }
         for (const f2 of await fs2.readdir(this.shotsDir).catch(() => [])) {
           if (f2.startsWith("raw-")) await fs2.rm(path2.join(this.shotsDir, f2)).catch(() => {
@@ -162586,9 +162601,12 @@ var init_session2 = __esm2({
         await fs2.writeFile(path2.join(this.dir, "session.json"), JSON.stringify(session2, null, 2));
         return this.dir;
       }
-      // Final image of a step: the click marker on top of the already-redacted raw capture,
-      // saved as shots/step-NNN.png. Returns null on any failure — one step without an image
-      // must not abort the rest of the recording.
+      // Final images of a step: the click marker on top of the already-redacted raw capture,
+      // saved as shots/step-NNN.png, plus — when the action happened inside a semantic
+      // container — a crop of that container, saved as shots/step-NNN-crop.png. The crop is cut
+      // from the FINAL full image, so it inherits marker and redaction. Any failure on the crop
+      // leaves screenshotCrop null; any failure on the full image leaves both null — one step
+      // without an image must not abort the rest of the recording.
       async _renderShot(step) {
         try {
           let buf = await fs2.readFile(path2.join(this.dir, step.screenshot));
@@ -162598,11 +162616,22 @@ var init_session2 = __esm2({
             } catch {
             }
           }
-          const finalShot = `shots/step-${String(step.index).padStart(3, "0")}.png`;
-          await fs2.writeFile(path2.join(this.dir, finalShot), buf);
-          return finalShot;
+          const n = String(step.index).padStart(3, "0");
+          const screenshot4 = `shots/step-${n}.png`;
+          await fs2.writeFile(path2.join(this.dir, screenshot4), buf);
+          let screenshotCrop = null;
+          if (step.containerRect) {
+            try {
+              const cropped = await cropPng(buf, step.containerRect);
+              screenshotCrop = `shots/step-${n}-crop.png`;
+              await fs2.writeFile(path2.join(this.dir, screenshotCrop), cropped);
+            } catch {
+              screenshotCrop = null;
+            }
+          }
+          return { screenshot: screenshot4, screenshotCrop };
         } catch {
-          return null;
+          return { screenshot: null, screenshotCrop: null };
         }
       }
     };
