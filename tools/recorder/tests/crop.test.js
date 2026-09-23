@@ -89,3 +89,11 @@ test('the factory runs in a bare scope, as it does once inlined into the page sc
   const bare = new Function('return (' + createCropRect.toString() + ')();')();
   assert.deepEqual(bare([box(500, 300, 600, 350)], { x: 550, y: 325 }, VW, VH), { x: 310, y: 205, w: 480, h: 240 });
 });
+
+test('a container entirely off-screen gives way to the next ancestor instead of ending the search', () => {
+  // off-screen on both axes: negative width and height must not multiply into a "big" area
+  assert.deepEqual(
+    cropRect([box(-2000, -2000, -1000, -1000), box(100, 100, 700, 400)], { x: 400, y: 250 }, VW, VH),
+    { x: 76, y: 76, w: 648, h: 348 },
+  );
+});

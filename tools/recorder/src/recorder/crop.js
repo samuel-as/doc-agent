@@ -26,9 +26,11 @@ export function createCropRect() {
     for (const b of boxes) {
       const x0 = Math.max(0, b.left), y0 = Math.max(0, b.top);
       const x1 = Math.min(vw, b.right), y1 = Math.min(vh, b.bottom);
+      // Thin (or entirely off-screen: negative sides) first, so a negative width times a
+      // negative height is never taken for a big visible area.
+      if (x1 - x0 < MIN_SIDE || y1 - y0 < MIN_SIDE) continue;
       // Ancestors only get bigger: once one is too big, none of the outer ones can help.
       if ((x1 - x0) * (y1 - y0) > MAX_AREA * vw * vh) return null;
-      if (x1 - x0 < MIN_SIDE || y1 - y0 < MIN_SIDE) continue;
       const [cx0, cx1] = span(x0 - MARGIN, x1 + MARGIN, MIN_W, vw);
       const [cy0, cy1] = span(y0 - MARGIN, y1 + MARGIN, MIN_H, vh);
       // The box of an ancestor does not grow for a descendant positioned outside its

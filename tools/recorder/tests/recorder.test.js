@@ -49,6 +49,8 @@ test('the injected script measures the semantic container of the target for the 
   }
   // the geometry is inlined from src/recorder/crop.js (unit-tested in crop.test.js)
   assert.ok(src.includes(createCropRect.toString()), 'crop geometry not inlined from crop.js');
+  // every semantic ancestor is a candidate, not only the nearest one
+  assert.ok(src.includes('c.parentElement.closest(CONTAINERS)'), 'the ancestor walk is missing');
   assert.ok(src.includes('MAX_AREA = 0.6'), '60% viewport cap missing');
   assert.ok(src.includes('MIN_W = 480, MIN_H = 240'), 'minimum crop size missing');
   assert.ok(src.includes('MARGIN = 24'), 'crop margin missing');

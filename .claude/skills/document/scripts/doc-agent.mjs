@@ -162786,8 +162786,8 @@ function createCropRect() {
     for (const b2 of boxes) {
       const x0 = Math.max(0, b2.left), y0 = Math.max(0, b2.top);
       const x1 = Math.min(vw, b2.right), y1 = Math.min(vh, b2.bottom);
-      if ((x1 - x0) * (y1 - y0) > MAX_AREA * vw * vh) return null;
       if (x1 - x0 < MIN_SIDE || y1 - y0 < MIN_SIDE) continue;
+      if ((x1 - x0) * (y1 - y0) > MAX_AREA * vw * vh) return null;
       const [cx0, cx1] = span(x0 - MARGIN, x1 + MARGIN, MIN_W, vw);
       const [cy0, cy1] = span(y0 - MARGIN, y1 + MARGIN, MIN_H, vh);
       if (target.x < cx0 || target.x > cx1 || target.y < cy0 || target.y > cy1) continue;
