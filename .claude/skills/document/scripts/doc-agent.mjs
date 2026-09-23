@@ -160323,7 +160323,8 @@ function consolidate(events) {
           screenshot: start3?.screenshot ?? null,
           coords: start3?.coords ?? null,
           sensitiveRects: start3?.sensitiveRects ?? [],
-          containerRect: start3?.containerRect ?? null
+          // the drop target is often in another block: a crop of the start block would miss it
+          containerRect: null
         }));
         break;
       }
@@ -162761,6 +162762,48 @@ var init_sensitivity = __esm2({
   }
 });
 
+// src/recorder/crop.js
+function createCropRect() {
+  const MAX_AREA = 0.6;
+  const MIN_SIDE = 40;
+  const MARGIN = 24;
+  const MIN_W = 480, MIN_H = 240;
+  const span = (a, b2, min, size) => {
+    const len = Math.max(b2 - a, min);
+    let lo = (a + b2) / 2 - len / 2;
+    let hi = lo + len;
+    if (lo < 0) {
+      hi -= lo;
+      lo = 0;
+    }
+    if (hi > size) {
+      lo -= hi - size;
+      hi = size;
+    }
+    return [Math.max(0, lo), hi];
+  };
+  return function cropRect2(boxes, target, vw, vh) {
+    for (const b2 of boxes) {
+      const x0 = Math.max(0, b2.left), y0 = Math.max(0, b2.top);
+      const x1 = Math.min(vw, b2.right), y1 = Math.min(vh, b2.bottom);
+      if ((x1 - x0) * (y1 - y0) > MAX_AREA * vw * vh) return null;
+      if (x1 - x0 < MIN_SIDE || y1 - y0 < MIN_SIDE) continue;
+      const [cx0, cx1] = span(x0 - MARGIN, x1 + MARGIN, MIN_W, vw);
+      const [cy0, cy1] = span(y0 - MARGIN, y1 + MARGIN, MIN_H, vh);
+      if (target.x < cx0 || target.x > cx1 || target.y < cy0 || target.y > cy1) continue;
+      const x2 = Math.round(cx0), y2 = Math.round(cy0);
+      return { x: x2, y: y2, w: Math.round(cx1) - x2, h: Math.round(cy1) - y2 };
+    }
+    return null;
+  };
+}
+var cropRect;
+var init_crop = __esm2({
+  "src/recorder/crop.js"() {
+    cropRect = createCropRect();
+  }
+});
+
 // src/recorder/instrument.js
 function buildInitScript() {
   return `(() => {
@@ -162860,37 +162903,19 @@ function buildInitScript() {
     // semantic ancestors count; null means "no crop, use the full screenshot". Measured at
     // event time (the capture runs a bit later; a scroll in between shifts the crop \u2014 a
     // quality issue, not a privacy one: redaction rects are measured at capture time).
-    // The ancestor's own box does not grow for a descendant positioned outside its normal
-    // flow (a dropdown overflowing a nav/header, a row menu overflowing a table, an
-    // autocomplete list overflowing a fieldset), so the crop built from that box alone can
-    // end up not containing the target at all. Unioning the target's rect in would defeat
-    // the point of a tight crop around the container, so instead this is conservative: once
-    // the final rect is known, null is returned unless the target's own centre falls inside
-    // it, falling back to the full screenshot rather than showing a crop without the element.
+    // The page only collects the ancestors' boxes, nearest first, and the target's centre;
+    // the geometry is inlined from src/recorder/crop.js (pure, self-contained).
     const CONTAINERS = 'form, fieldset, dialog, [role="dialog"], table, [role="tabpanel"], section, article, aside, nav, header';
-    const CROP_MAX_AREA = 0.6; // of the viewport: bigger than this, the crop would not help
-    const CROP_MIN_SIDE = 40;  // visible part smaller than this is not a usable container
-    const CROP_MARGIN = 24;
-    const CROP_MIN_W = 480, CROP_MIN_H = 240;
+    const cropRect = (${createCropRect.toString()})();
     const containerRect = (el) => {
       if (!el || !el.closest) return null;
-      const c = el.closest(CONTAINERS);
-      if (!c) return null;
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const r = c.getBoundingClientRect();
-      let x0 = Math.max(0, r.left), y0 = Math.max(0, r.top);
-      let x1 = Math.min(vw, r.right), y1 = Math.min(vh, r.bottom);
-      if (x1 - x0 < CROP_MIN_SIDE || y1 - y0 < CROP_MIN_SIDE) return null;
-      if ((x1 - x0) * (y1 - y0) > CROP_MAX_AREA * vw * vh) return null;
-      x0 -= CROP_MARGIN; y0 -= CROP_MARGIN; x1 += CROP_MARGIN; y1 += CROP_MARGIN;
-      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-      const w = Math.max(x1 - x0, CROP_MIN_W), h = Math.max(y1 - y0, CROP_MIN_H);
-      x0 = Math.max(0, cx - w / 2); x1 = Math.min(vw, cx + w / 2);
-      y0 = Math.max(0, cy - h / 2); y1 = Math.min(vh, cy + h / 2);
+      const boxes = [];
+      for (let c = el.closest(CONTAINERS); c; c = c.parentElement ? c.parentElement.closest(CONTAINERS) : null) {
+        boxes.push(c.getBoundingClientRect());
+      }
       const er = el.getBoundingClientRect();
-      const ecx = er.left + er.width / 2, ecy = er.top + er.height / 2;
-      if (ecx < x0 || ecx > x1 || ecy < y0 || ecy > y1) return null;
-      return { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) };
+      const centre = { x: er.left + er.width / 2, y: er.top + er.height / 2 };
+      return cropRect(boxes, centre, window.innerWidth, window.innerHeight);
     };
 
     // Rects of every VISIBLE sensitive field right now \u2014 the recorder paints them over.
@@ -163034,6 +163059,7 @@ var BINDING;
 var init_instrument = __esm2({
   "src/recorder/instrument.js"() {
     init_sensitivity();
+    init_crop();
     BINDING = "__docAgentEvent";
   }
 });
