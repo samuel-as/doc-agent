@@ -122,7 +122,7 @@ docs/vpn-ticket-request/
 ├── vpn-ticket-request.pdf          ← optional
 └── sessions/2026-08-31-1745/       ← one folder per recording (kept as history)
     ├── session.json                ← the recorded step log
-    └── shots/step-001.png ...      ← all screenshots of that recording
+    └── shots/step-001.png, step-001-crop.png ...  ← full screenshots + container crops
 ```
 
 Committing that folder (or not) is your decision — doc-agent never touches your
@@ -141,6 +141,10 @@ The text comes out in the imperative ("Click **Save**"), with micro-actions grou
 logical steps — a whole form becomes one step, not ten. It is written in the **language of
 the recorded screens**, so a Portuguese UI produces a Portuguese guide and an English UI
 produces an English one.
+
+When an action happens inside a form, dialog, table or other semantic block, the recording
+also keeps a **crop of that block** with the click marker, and the guide uses it instead of
+the whole screen — the full screenshot stays in `sessions/` and is what navigations use.
 
 ## Privacy and security
 

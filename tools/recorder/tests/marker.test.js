@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PNG } from 'pngjs';
-import { drawMarker, drawRedaction } from '../src/recorder/marker.js';
+import { drawMarker, drawRedaction, cropPng } from '../src/recorder/marker.js';
 
 function blankPng(width, height) {
   const png = new PNG({ width, height });
@@ -60,4 +60,38 @@ test('drawRedaction handles several rects and rects crossing the image border', 
 test('drawRedaction with an empty list returns an equivalent image', async () => {
   const out = await drawRedaction(blankPng(20, 20), []);
   assert.deepEqual(pixelAt(out, 10, 10), { r: 255, g: 255, b: 255 });
+});
+
+function paintedPng(width, height, box) {
+  const png = new PNG({ width, height });
+  png.data.fill(255);
+  for (let y = box.y; y < box.y + box.h; y++) {
+    for (let x = box.x; x < box.x + box.w; x++) {
+      const i = (width * y + x) << 2;
+      png.data[i] = 10; png.data[i + 1] = 20; png.data[i + 2] = 30; png.data[i + 3] = 255;
+    }
+  }
+  return PNG.sync.write(png);
+}
+
+test('cropPng returns an image of the rect size with the same pixels', async () => {
+  const src = paintedPng(200, 100, { x: 50, y: 20, w: 40, h: 10 });
+  const out = await cropPng(src, { x: 40, y: 10, w: 60, h: 30 });
+  const meta = PNG.sync.read(out);
+  assert.equal(meta.width, 60);
+  assert.equal(meta.height, 30);
+  assert.deepEqual(pixelAt(out, 10, 10), { r: 10, g: 20, b: 30 });   // (50,20) in the source
+  assert.deepEqual(pixelAt(out, 5, 5), { r: 255, g: 255, b: 255 });  // (45,15): white
+});
+
+test('cropPng clips the rect to the image bounds', async () => {
+  const out = await cropPng(blankPng(100, 100), { x: 80, y: 90, w: 50, h: 50 });
+  const meta = PNG.sync.read(out);
+  assert.equal(meta.width, 20);
+  assert.equal(meta.height, 10);
+});
+
+test('cropPng throws on an empty crop', async () => {
+  await assert.rejects(() => cropPng(blankPng(100, 100), { x: 150, y: 0, w: 10, h: 10 }), /empty crop/);
+  await assert.rejects(() => cropPng(blankPng(100, 100), { x: 0, y: 0, w: 0, h: 10 }), /empty crop/);
 });

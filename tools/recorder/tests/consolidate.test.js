@@ -268,3 +268,79 @@ test('a sensitive field that was filled produces one fill step with a null value
   assert.equal(steps[0].value, null);
   assert.equal(steps[0].hasValue, undefined); // internal: must not reach the step
 });
+
+const RECT = { x: 10, y: 20, w: 500, h: 300 };
+const OTHER = { x: 0, y: 0, w: 480, h: 240 };
+
+test('click/check/select carry their own containerRect; navigation/enter/shortcut have null', () => {
+  const steps = consolidate([
+    ev('click', { selector: '#a', containerRect: RECT, screenshot: 'shots/raw-001.png' }),
+    ev('check', { selector: '#c', value: 'on', containerRect: RECT, ts: 2000 }),
+    ev('select', { selector: '#s', value: 'X', containerRect: RECT, ts: 3000 }),
+    ev('navigation', { url: 'https://x/2', ts: 4000 }),
+    ev('shortcut', { value: 'Ctrl+S', ts: 5000 }),
+    ev('enter', { ts: 6000 }),
+  ]);
+  assert.deepEqual(steps[0].containerRect, RECT);
+  assert.deepEqual(steps[1].containerRect, RECT);
+  assert.deepEqual(steps[2].containerRect, RECT);
+  assert.equal(steps[3].containerRect, null);
+  assert.equal(steps[4].containerRect, null);
+  assert.equal(steps[5].containerRect, null);
+});
+
+test('fill takes the containerRect of the focus event that provided its screenshot', () => {
+  const steps = consolidate([
+    ev('click', { selector: '#f', isEditable: true, screenshot: 'shots/raw-001.png', containerRect: RECT, ts: 1000 }),
+    ev('field-focus', { selector: '#f', ts: 1050, containerRect: OTHER }), // same interaction, no screenshot
+    ev('field-commit', { selector: '#f', value: 'v', ts: 3000 }),
+  ]);
+  assert.equal(steps[0].type, 'fill');
+  assert.deepEqual(steps[0].containerRect, RECT);
+});
+
+test('fill without any focus screenshot has containerRect null', () => {
+  const steps = consolidate([ev('field-commit', { selector: '#f', value: 'v' })]);
+  assert.equal(steps[0].containerRect, null);
+});
+
+test('drag takes the containerRect of the drag-start', () => {
+  const steps = consolidate([
+    ev('drag-start', { selector: '#i', screenshot: 'shots/raw-001.png', containerRect: RECT, ts: 1000 }),
+    ev('drag', { selector: '#i', target: 'Done', ts: 1500 }),
+  ]);
+  assert.deepEqual(steps[0].containerRect, RECT);
+});
+
+// Adversarial: in the real page, shortcut/enter/field-commit/drag events DO carry a
+// containerRect (the page puts one on every payload that has a target) -- the explicit
+// nulls in consolidate.js's makeStep calls are the only thing keeping these steps crop-free.
+// These events would never legitimately show it (a shortcut has no click point to crop
+// around, a bare Enter may have nothing focused, navigation is a full-page change), so
+// giving them a rect here and asserting null pins that guard down.
+test('shortcut/enter/navigation ignore a containerRect on their own event', () => {
+  const steps = consolidate([
+    ev('shortcut', { value: 'Ctrl+S', containerRect: RECT, ts: 1000 }),
+    ev('enter', { containerRect: RECT, ts: 2000 }),
+    ev('navigation', { url: 'https://x/2', containerRect: RECT, ts: 3000 }),
+  ]);
+  assert.equal(steps[0].containerRect, null);
+  assert.equal(steps[1].containerRect, null);
+  assert.equal(steps[2].containerRect, null);
+});
+
+test('field-commit with its own containerRect and no focus screenshot still yields containerRect null on the fill', () => {
+  const steps = consolidate([
+    ev('field-commit', { selector: '#f', value: 'v', containerRect: RECT }),
+  ]);
+  assert.equal(steps[0].type, 'fill');
+  assert.equal(steps[0].containerRect, null);
+});
+
+test('drag ignores a containerRect on the drop event itself, keeping the drag-start one', () => {
+  const steps = consolidate([
+    ev('drag-start', { selector: '#i', screenshot: 'shots/raw-001.png', containerRect: RECT, ts: 1000 }),
+    ev('drag', { selector: '#i', target: 'Done', containerRect: OTHER, ts: 1500 }),
+  ]);
+  assert.deepEqual(steps[0].containerRect, RECT);
+});

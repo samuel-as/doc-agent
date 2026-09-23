@@ -40,6 +40,17 @@ test('labelFor never uses the innerText of a contenteditable: that IS the typed 
   assert.ok(guard < innerText, 'the guard must come before the innerText fallback');
 });
 
+test('the injected script measures the semantic container of the target for the crop', () => {
+  const src = buildInitScript();
+  assert.ok(src.includes('containerRect'), 'containerRect missing from payloads');
+  for (const sel of ['form', 'fieldset', 'dialog', '[role="dialog"]', 'table', '[role="tabpanel"]', 'section', 'article', 'aside', 'nav', 'header']) {
+    assert.ok(src.includes(sel), `container selector ${sel} missing`);
+  }
+  assert.ok(src.includes('CROP_MAX_AREA = 0.6'), '60% viewport cap missing');
+  assert.ok(src.includes('CROP_MIN_W = 480') && src.includes('CROP_MIN_H = 240'), 'minimum crop size missing');
+  assert.ok(src.includes('CROP_MARGIN = 24'), 'crop margin missing');
+});
+
 test('keydown: Enter ignores TEXTAREA/contenteditable; shortcuts skip copy/paste/select-all/undo', () => {
   const src = buildInitScript();
   const keydownIdx = src.indexOf("addEventListener('keydown'");

@@ -2,7 +2,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { consolidate } from './consolidate.js';
-import { drawMarker, drawRedaction } from './marker.js';
+import { drawMarker, drawRedaction, cropPng } from './marker.js';
+
+// True when the click point landed outside the measured container -- see the guard in
+// _renderShot below.
+function outsideContainer(coords, rect) {
+  return coords.x < rect.x || coords.x > rect.x + rect.w || coords.y < rect.y || coords.y > rect.y + rect.h;
+}
 
 // Local-time stamp YYYY-MM-DD-HHMM: each recording gets its own folder, so earlier
 // takes of the same procedure are preserved.
@@ -62,9 +68,11 @@ export class SessionWriter {
     const steps = consolidate(orderedEvents);
     const finalSteps = [];
     for (const step of steps) {
-      const finalShot = step.screenshot ? await this._renderShot(step) : null;
-      const { coords, screenshot, sensitiveRects, ...rest } = step;
-      finalSteps.push({ ...rest, screenshot: finalShot });
+      const { screenshot, screenshotCrop } = step.screenshot
+        ? await this._renderShot(step)
+        : { screenshot: null, screenshotCrop: null };
+      const { coords, screenshot: raw, sensitiveRects, containerRect, ...rest } = step;
+      finalSteps.push({ ...rest, screenshot, screenshotCrop, preferred: screenshotCrop ? 'crop' : 'full' });
     }
     // The raws are already redacted (addEvent), but they duplicate the final images.
     for (const f of await fs.readdir(this.shotsDir).catch(() => [])) {
@@ -75,20 +83,36 @@ export class SessionWriter {
     return this.dir;
   }
 
-  // Final image of a step: the click marker on top of the already-redacted raw capture,
-  // saved as shots/step-NNN.png. Returns null on any failure — one step without an image
-  // must not abort the rest of the recording.
+  // Final images of a step: the click marker on top of the already-redacted raw capture,
+  // saved as shots/step-NNN.png, plus — when the action happened inside a semantic
+  // container — a crop of that container, saved as shots/step-NNN-crop.png. The crop is cut
+  // from the FINAL full image, so it inherits marker and redaction. Any failure on the crop
+  // leaves screenshotCrop null; any failure on the full image leaves both null — one step
+  // without an image must not abort the rest of the recording.
   async _renderShot(step) {
     try {
       let buf = await fs.readFile(path.join(this.dir, step.screenshot));
       if (step.coords) {
         try { buf = await drawMarker(buf, step.coords); } catch { /* a screenshot without the marker beats no screenshot */ }
       }
-      const finalShot = `shots/step-${String(step.index).padStart(3, '0')}.png`;
-      await fs.writeFile(path.join(this.dir, finalShot), buf);
-      return finalShot;
+      const n = String(step.index).padStart(3, '0');
+      const screenshot = `shots/step-${n}.png`;
+      await fs.writeFile(path.join(this.dir, screenshot), buf);
+      let screenshotCrop = null;
+      // Defense in depth against the page's containerRect() missing the target (an absolutely
+      // positioned dropdown/menu overflowing its semantic ancestor): when the click point is
+      // outside the container we measured, cropping would show the ancestor without the element
+      // or its marker, so skip the crop and keep the full screenshot instead.
+      if (step.containerRect && !(step.coords && outsideContainer(step.coords, step.containerRect))) {
+        try {
+          const cropped = await cropPng(buf, step.containerRect);
+          screenshotCrop = `shots/step-${n}-crop.png`;
+          await fs.writeFile(path.join(this.dir, screenshotCrop), cropped);
+        } catch { screenshotCrop = null; }
+      }
+      return { screenshot, screenshotCrop };
     } catch {
-      return null;
+      return { screenshot: null, screenshotCrop: null };
     }
   }
 }

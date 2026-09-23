@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) —
 versions follow [SemVer](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- Container crops: every action inside a semantic container (`form`, `fieldset`, `dialog`,
+  `table`, `section`…) also produces `shots/step-NNN-crop.png` with the marker; steps carry
+  `screenshotCrop` and `preferred` (`crop` or `full`), and the skill opens one image per
+  step. Containers larger than 60% of the viewport, or absent, keep the full screenshot.
+
 ## [0.3.2] — 2026-09-18
 
 ### Fixed

@@ -56,3 +56,22 @@ export async function drawRedaction(inputPng, rects) {
   }
   return PNG.sync.write(png);
 }
+
+// Crops a rectangle out of a PNG. The rect is clipped to the image; an empty result is an
+// error so the caller can fall back to the full screenshot. Used AFTER redaction and marker,
+// so the crop inherits both.
+export async function cropPng(inputPng, { x, y, w, h }) {
+  const png = PNG.sync.read(inputPng);
+  const x0 = Math.max(0, Math.floor(x));
+  const y0 = Math.max(0, Math.floor(y));
+  const x1 = Math.min(png.width, Math.ceil(x + w));
+  const y1 = Math.min(png.height, Math.ceil(y + h));
+  const cw = x1 - x0, ch = y1 - y0;
+  if (cw <= 0 || ch <= 0) throw new Error('empty crop');
+  const out = new PNG({ width: cw, height: ch });
+  for (let row = 0; row < ch; row++) {
+    const srcStart = ((png.width * (y0 + row)) + x0) << 2;
+    png.data.copy(out.data, (cw * row) << 2, srcStart, srcStart + (cw << 2));
+  }
+  return PNG.sync.write(out);
+}
