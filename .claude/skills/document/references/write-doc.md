@@ -18,9 +18,13 @@ field names are always quoted exactly as they appear on screen, never translated
    corrupted or `steps` is empty, STOP immediately and report: "Invalid or empty session —
    record it again with `/document <name>`". NEVER generate partial documentation silently.
 
-2. **Look at every screenshot.** For each step with a `screenshot`, read the image at
-   `<session>/<screenshot>` with the Read tool. The images are the source of truth about
-   what the screen shows — use them to:
+2. **Look at every step's image — one file per step.** Each step declares which file to
+   open: `preferred: "crop"` → read `<session>/<screenshotCrop>` (the block of the screen
+   where the action happened, with the click marker); `preferred: "full"` or absent → read
+   `<session>/<screenshot>`. Open ONLY that file. Open the other one only when the user asked
+   for it ("use the full screenshot on step 4") or when the crop you opened visibly cut off a
+   label or button the instruction needs. The images are the source of truth about what the
+   screen shows — use them to:
    - fix generic or truncated labels from the log (the real button/field text is in the image);
    - identify the real name of the screen and of the system;
    - capture messages, warnings and states that the event log does not record.
@@ -57,10 +61,10 @@ field names are always quoted exactly as they appear on screen, never translated
 
    ### 2. ...
 
-5. **Copy the referenced screenshots** from `<session>/shots/` to
-   `docs/<slug>/screenshots/`, renaming them to `step-NN.png` in the order of the final
-   steps. Do NOT copy screenshots the documentation does not reference. Remove
-   screenshots left over from a previous generation so the folder matches the README.
+5. **Copy the image used in each step** (the crop or the full screenshot, whichever you opened)
+   from `<session>/shots/` to `docs/<slug>/screenshots/`, renaming to `step-NN.png` in the
+   order of the final steps. Do NOT copy screenshots the documentation does not reference.
+   Remove screenshots left over from a previous generation so the folder matches the README.
 
 6. **Offer the PDF.** Ask whether the user also wants the PDF version (or just generate it, if
    the original request already mentioned a PDF). If yes:
@@ -90,3 +94,5 @@ field names are always quoted exactly as they appear on screen, never translated
   the recording may have missed an action" at the matching point.
 - Values typed during the recording are EXAMPLES: generalize them in the instruction
   ("Describe the problem — e.g. _VPN is down_"), do not present them as required values.
+- When a step uses a crop and the block's position on the screen is not obvious, say where it
+  is ("In the **New ticket** form, …") so the reader can find it on the full page.

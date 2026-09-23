@@ -123,7 +123,7 @@ docs/vpn-ticket-request/
 ├── vpn-ticket-request.pdf          ← opcional
 └── sessions/2026-08-31-1745/       ← uma pasta por gravação (mantida como histórico)
     ├── session.json                ← o log de passos gravado
-    └── shots/step-001.png ...      ← todos os prints daquela gravação
+    └── shots/step-001.png, step-001-crop.png ...  ← prints completos + recortes de contêiner
 ```
 
 Versionar essa pasta (ou não) é decisão sua — o doc-agent nunca mexe no seu `.gitignore`.
@@ -142,6 +142,11 @@ O texto sai no imperativo ("Clique em **Salvar**"), com microações agrupadas e
 lógicos — um formulário inteiro vira um passo, não dez. É escrito no **idioma das telas
 gravadas**, então uma interface em português produz um guia em português e uma em inglês
 produz um em inglês.
+
+Quando uma ação acontece dentro de um formulário, diálogo, tabela ou outro bloco semântico,
+a gravação também guarda um **recorte daquele bloco** com a marca do clique, e o guia usa
+esse recorte em vez da tela inteira — o print completo fica em `sessions/` e é o que as
+navegações usam.
 
 ## Privacidade e segurança
 

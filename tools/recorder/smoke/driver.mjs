@@ -184,6 +184,20 @@ if (mode === 'security') {
     const png = await readShot(clickShot);
     check(countColor(png, [224, 36, 94]) > 50, 'marker ring not found');
   }
+  // Crop: actions inside the <fieldset> get a container crop; the submit button's container
+  // is the whole <form> (taller than 60% of the viewport) and the navigation never crops.
+  const reasonFill = fills.find((s) => s.value === 'test ticket');
+  check(reasonFill?.preferred === 'crop' && !!reasonFill?.screenshotCrop, `fill of Reason should have a crop: ${JSON.stringify(reasonFill)}`);
+  check(chk?.preferred === 'crop' && !!chk?.screenshotCrop, 'check step should have a crop');
+  if (reasonFill?.screenshotCrop) {
+    const full = await readShot(reasonFill);
+    const crop = PNG.sync.read(await fs.readFile(path.join(sessionDir, reasonFill.screenshotCrop.replaceAll('/', path.sep))));
+    check(crop.width < full.width && crop.height < full.height, `crop (${crop.width}x${crop.height}) not smaller than full (${full.width}x${full.height})`);
+    check(countColor(crop, [224, 36, 94]) > 50, 'marker ring missing from the crop');
+  }
+  check(submit?.preferred === 'full' && submit?.screenshotCrop === null, `submit should be preferred full: ${JSON.stringify(submit)}`);
+  const navStep = session.steps.find((s) => s.type === 'navigation');
+  check(navStep?.preferred === 'full' && navStep?.screenshotCrop === null, 'navigation should be preferred full');
 }
 
 if (failures.length) {

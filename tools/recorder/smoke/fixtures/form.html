@@ -4,16 +4,19 @@
 <body>
   <h1>Open a Ticket (demo)</h1>
   <form action="ok.html" method="get">
-    <p><label for="reason">Reason</label> <input id="reason" name="reason" type="text"></p>
-    <p><label for="detail">Detail</label> <textarea id="detail" name="detail"></textarea></p>
-    <p>Notes</p>
-    <div id="notes" contenteditable="true" style="border: 1px solid #888; min-height: 20px; width: 200px;"></div>
-    <p><label for="type">Type</label>
-      <select id="type" name="type"><option>Incident</option><option>Request</option></select></p>
-    <p><label><input type="checkbox" id="urgent" name="urgent"> Urgent</label></p>
-    <p id="saved"></p>
-    <ul id="queue"><li id="item-a" draggable="true">Task A</li><li id="item-b" draggable="true">Task B</li></ul>
-    <div id="done">Done</div>
+    <fieldset id="ticket-fields">
+      <legend>Ticket</legend>
+      <p><label for="reason">Reason</label> <input id="reason" name="reason" type="text"></p>
+      <p><label for="detail">Detail</label> <textarea id="detail" name="detail"></textarea></p>
+      <p>Notes</p>
+      <div id="notes" contenteditable="true" style="border: 1px solid #888; min-height: 20px; width: 200px;"></div>
+      <p><label for="type">Type</label>
+        <select id="type" name="type"><option>Incident</option><option>Request</option></select></p>
+      <p><label><input type="checkbox" id="urgent" name="urgent"> Urgent</label></p>
+      <p id="saved"></p>
+      <ul id="queue"><li id="item-a" draggable="true">Task A</li><li id="item-b" draggable="true">Task B</li></ul>
+      <div id="done">Done</div>
+    </fieldset>
     <div class="spacer"></div>
     <p><button id="submit" type="submit">Submit ticket</button></p>
   </form>
