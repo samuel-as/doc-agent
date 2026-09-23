@@ -12,6 +12,9 @@ versions follow [SemVer](https://semver.org).
   `table`, `section`…) also produces `shots/step-NNN-crop.png` with the marker; steps carry
   `screenshotCrop` and `preferred` (`crop` or `full`), and the skill opens one image per
   step. Containers larger than 60% of the viewport, or absent, keep the full screenshot.
+  A container too thin to use, or whose crop would miss the clicked element (a dropdown
+  overflowing a `nav`), gives way to the next semantic ancestor; a block at the edge of the
+  screen keeps the 480×240 minimum by shifting inward; drags always use the full screenshot.
 
 ## [0.3.2] — 2026-09-18
 
