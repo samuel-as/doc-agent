@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BINDING, buildInitScript } from '../src/recorder/instrument.js';
 import { Recorder, SETTLE_EXPR } from '../src/recorder/recorder.js';
+import { createCropRect } from '../src/recorder/crop.js';
 
 test('the injected script contains the binding, the listeners and the reinstall guard', () => {
   const src = buildInitScript();
@@ -46,9 +47,13 @@ test('the injected script measures the semantic container of the target for the 
   for (const sel of ['form', 'fieldset', 'dialog', '[role="dialog"]', 'table', '[role="tabpanel"]', 'section', 'article', 'aside', 'nav', 'header']) {
     assert.ok(src.includes(sel), `container selector ${sel} missing`);
   }
-  assert.ok(src.includes('CROP_MAX_AREA = 0.6'), '60% viewport cap missing');
-  assert.ok(src.includes('CROP_MIN_W = 480') && src.includes('CROP_MIN_H = 240'), 'minimum crop size missing');
-  assert.ok(src.includes('CROP_MARGIN = 24'), 'crop margin missing');
+  // the geometry is inlined from src/recorder/crop.js (unit-tested in crop.test.js)
+  assert.ok(src.includes(createCropRect.toString()), 'crop geometry not inlined from crop.js');
+  // every semantic ancestor is a candidate, not only the nearest one
+  assert.ok(src.includes('c.parentElement.closest(CONTAINERS)'), 'the ancestor walk is missing');
+  assert.ok(src.includes('MAX_AREA = 0.6'), '60% viewport cap missing');
+  assert.ok(src.includes('MIN_W = 480, MIN_H = 240'), 'minimum crop size missing');
+  assert.ok(src.includes('MARGIN = 24'), 'crop margin missing');
 });
 
 test('keydown: Enter ignores TEXTAREA/contenteditable; shortcuts skip copy/paste/select-all/undo', () => {

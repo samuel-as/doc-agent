@@ -120,7 +120,8 @@ export function consolidate(events) {
           screenshot: start?.screenshot ?? null,
           coords: start?.coords ?? null,
           sensitiveRects: start?.sensitiveRects ?? [],
-          containerRect: start?.containerRect ?? null,
+          // the drop target is often in another block: a crop of the start block would miss it
+          containerRect: null,
         }));
         break;
       }

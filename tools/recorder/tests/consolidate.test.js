@@ -304,12 +304,15 @@ test('fill without any focus screenshot has containerRect null', () => {
   assert.equal(steps[0].containerRect, null);
 });
 
-test('drag takes the containerRect of the drag-start', () => {
+// The drop target is often in another block than the dragged item, and a crop of the start
+// block alone would leave it out: drags always use the full screenshot.
+test('drag never crops, whatever rect the drag-start or the drop carries', () => {
   const steps = consolidate([
     ev('drag-start', { selector: '#i', screenshot: 'shots/raw-001.png', containerRect: RECT, ts: 1000 }),
-    ev('drag', { selector: '#i', target: 'Done', ts: 1500 }),
+    ev('drag', { selector: '#i', target: 'Done', containerRect: OTHER, ts: 1500 }),
   ]);
-  assert.deepEqual(steps[0].containerRect, RECT);
+  assert.equal(steps[0].screenshot, 'shots/raw-001.png');
+  assert.equal(steps[0].containerRect, null);
 });
 
 // Adversarial: in the real page, shortcut/enter/field-commit/drag events DO carry a
@@ -335,12 +338,4 @@ test('field-commit with its own containerRect and no focus screenshot still yiel
   ]);
   assert.equal(steps[0].type, 'fill');
   assert.equal(steps[0].containerRect, null);
-});
-
-test('drag ignores a containerRect on the drop event itself, keeping the drag-start one', () => {
-  const steps = consolidate([
-    ev('drag-start', { selector: '#i', screenshot: 'shots/raw-001.png', containerRect: RECT, ts: 1000 }),
-    ev('drag', { selector: '#i', target: 'Done', containerRect: OTHER, ts: 1500 }),
-  ]);
-  assert.deepEqual(steps[0].containerRect, RECT);
 });
