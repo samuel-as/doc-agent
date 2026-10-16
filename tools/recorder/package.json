@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "marked": "^18.0.13",
-    "playwright-core": "^1.63.0",
+    "playwright-core": "^1.64.0",
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
